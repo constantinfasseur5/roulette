@@ -4,7 +4,9 @@
 
   // ------------------------------------------------------------------ helpers
   const $ = (s, r) => (r || document).querySelector(s);
-  const fmt = (n) => Number(n).toLocaleString('nl-BE');
+  const t = (k, p) => I18N.t(k, p);   // eigen teksten (NL sleutel -> EN/NL)
+  const tr = (s) => I18N.tr(s);       // teksten van de server
+  const fmt = (n) => Number(n).toLocaleString(I18N.lang === 'en' ? 'en-GB' : 'nl-BE');
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   const lerp = (a, b, t) => a + (b - a) * t;
   const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
@@ -116,22 +118,22 @@
       case 'welcome': return onWelcome(m);
       case 'state': return onState(m);
       case 'chat': S.chat.push(m); if (S.chat.length > 80) S.chat.shift(); renderChat(); if (!m.sys && S.me && m.id !== S.me.id) Sound.ping(); return;
-      case 'toast': return toast(m.text, m.kind);
+      case 'toast': return toast(tr(m.text), m.kind);
       case 'spin': return onSpin(m);
       case 'result': return onResult(m);
       case 'error':
-        if (S.joined) toast(m.msg, 'error'); else showStartError(m.msg);
+        if (S.joined) toast(tr(m.msg), 'error'); else showStartError(tr(m.msg));
         return;
-      case 'kicked': return leaveToStart(m.msg || 'Je bent uit de kamer gezet.');
-      case 'roomClosed': return leaveToStart(m.msg || 'De kamer is gesloten.');
+      case 'kicked': return leaveToStart(tr(m.msg || 'Je bent uit de kamer gezet.'));
+      case 'roomClosed': return leaveToStart(tr(m.msg || 'De kamer is gesloten.'));
       case 'left': return leaveToStart('');
       case 'resumeFailed':
         store.del('sessionStorage', 'roulette.session');
-        if (S.joined) leaveToStart('De verbinding met de kamer is verlopen. Join opnieuw.');
+        if (S.joined) leaveToStart(t('De verbinding met de kamer is verlopen. Join opnieuw.'));
         return;
       case 'replaced':
         S.noReconnect = true;
-        leaveToStart('Je sessie is in een ander venster geopend. Herlaad deze pagina om hier verder te spelen.', true);
+        leaveToStart(t('Je sessie is in een ander venster geopend. Herlaad deze pagina om hier verder te spelen.'), true);
         return;
     }
   }
@@ -146,6 +148,7 @@
     S.shownRound = 0;
     $('#view-start').hidden = true;
     $('#view-game').hidden = false;
+    document.body.classList.add('in-game');
     $('#room-code').textContent = m.code;
     document.title = `Roulette ${m.code}`;
     renderChat(true);
@@ -158,6 +161,7 @@
     if (!keepBlocked) store.del('localStorage', 'roulette.last');
     $('#view-game').hidden = true;
     $('#view-start').hidden = false;
+    document.body.classList.remove('in-game');
     $('#result-banner').hidden = true;
     $('#conn-banner').hidden = true;
     document.title = 'Roulette Royale';
@@ -215,7 +219,7 @@
 
   function renderTopbar() {
     const r = S.st.room;
-    $('#phase-label').textContent = r.paused ? '⏸ Gepauzeerd' : PHASES[r.phase] + (r.round ? ` · ronde ${r.round}` : '');
+    $('#phase-label').textContent = r.paused ? t('⏸ Gepauzeerd') : t(PHASES[r.phase]) + (r.round ? t(' · ronde {n}', { n: r.round }) : '');
     $('#pause-badge').hidden = !r.paused;
     $('#btn-sound').textContent = Sound.on ? '🔊' : '🔇';
   }
@@ -223,16 +227,16 @@
   function renderMe() {
     const me = S.st.me;
     $('#my-chips').textContent = fmt(me.chips);
-    $('#my-staked').textContent = me.staked ? `+ ${fmt(me.staked)} ingezet` : '';
+    $('#my-staked').textContent = me.staked ? t('+ {n} ingezet', { n: fmt(me.staked) }) : '';
     const r = S.st.room;
     let hint = '';
-    if (me.spectator) hint = 'Je bent toeschouwer (croupier).';
-    else if (me.sitOut && r.phase !== 'lobby' && r.phase !== 'results') hint = 'Je doet mee vanaf de volgende ronde.';
-    else if (me.chips === 0 && !me.staked) hint = 'Geen fiches meer. Vraag de Host om fiches.';
-    else if (r.phase === 'lobby') hint = me.host ? 'Start een ronde in het Host-paneel.' : 'De Host start zo de eerste ronde.';
-    else if (r.phase === 'betting') hint = r.paused ? 'Gepauzeerd door de Host.' : 'Kies een fiche en klik op de tafel.';
+    if (me.spectator) hint = t('Je bent toeschouwer (croupier).');
+    else if (me.sitOut && r.phase !== 'lobby' && r.phase !== 'results') hint = t('Je doet mee vanaf de volgende ronde.');
+    else if (me.chips === 0 && !me.staked) hint = t('Geen fiches meer. Vraag de Host om fiches.');
+    else if (r.phase === 'lobby') hint = me.host ? t('Start een ronde in het Host-paneel.') : t('De Host start zo de eerste ronde.');
+    else if (r.phase === 'betting') hint = r.paused ? t('Gepauzeerd door de Host.') : t('Kies een fiche en klik op de tafel.');
     else if (r.phase === 'closed') hint = 'Rien ne va plus…';
-    else if (r.phase === 'results' && me.net != null) hint = me.net >= 0 ? `Vorige ronde: +${fmt(me.net)}` : `Vorige ronde: ${fmt(me.net)}`;
+    else if (r.phase === 'results' && me.net != null) hint = t('Vorige ronde: {n}', { n: (me.net >= 0 ? '+' : '') + fmt(me.net) });
     $('#hint').textContent = hint;
   }
 
@@ -240,7 +244,7 @@
     const r = S.st.room;
     const hist = $('#history');
     hist.replaceChildren(...r.history.map((n) => h('span', { class: 'hist-n ' + colorName(n), text: Rules.label(n) })));
-    if (!r.history.length) hist.append(h('span', { class: 'tags', text: 'Nog geen uitslagen.' }));
+    if (!r.history.length) hist.append(h('span', { class: 'tags', text: t('Nog geen uitslagen.') }));
 
     const st = r.stats;
     const hc = $('#hotcold');
@@ -249,8 +253,8 @@
       const mini = (n, extra) => h('span', { class: 'mini ' + colorName(n), text: Rules.label(n) + (extra || '') });
       hc.append(
         h('div', { class: 'row' }, '🔥 Hot:', st.hot.map((x) => mini(x.n, ` ×${x.c}`))),
-        h('div', { class: 'row' }, '❄ Koud:', st.cold.map((x) => mini(x.n, x.g >= st.total ? ' nooit' : ` ${x.g}×`))),
-        h('div', { class: 'row' }, `Laatste 20: ${st.red} rood · ${st.black} zwart · ${st.green} groen`),
+        h('div', { class: 'row' }, t('❄ Koud:'), st.cold.map((x) => mini(x.n, x.g >= st.total ? t(' nooit') : ` ${x.g}×`))),
+        h('div', { class: 'row' }, t('Laatste 20: {r} rood · {b} zwart · {g} groen', { r: st.red, b: st.black, g: st.green })),
       );
     }
   }
@@ -271,6 +275,8 @@
     S.lastCountSec = sec;
   }
   setInterval(updateTimer, 200);
+  // Keepalive: gratis hosts laten een dienst zonder verkeer inslapen; een klein bericht per 2 minuten voorkomt dat.
+  setInterval(() => { if (S.open) send({ t: 'ping' }); }, 120000);
 
   // ------------------------------------------------------------------ fiches kiezen + acties
   function renderChips() {
@@ -281,7 +287,7 @@
     row.replaceChildren(...Rules.CHIPS.map((c) => {
       const ok = usable.includes(c);
       return h('button', {
-        class: `chipbtn ${tier(c)}${c === S.chip ? ' sel' : ''}`, disabled: !ok, 'aria-label': `Fiche ${c}`, 'aria-pressed': c === S.chip ? 'true' : 'false',
+        class: `chipbtn ${tier(c)}${c === S.chip ? ' sel' : ''}`, disabled: !ok, 'aria-label': t('Fiche {c}', { c }), 'aria-pressed': c === S.chip ? 'true' : 'false',
         onclick: () => { S.chip = c; Sound.init(); Sound.chip(); renderChips(); },
       }, String(c));
     }));
@@ -295,12 +301,12 @@
 
   /** Waarom kan je nu niet inzetten? (tekst) of null als het wel kan. */
   function betBlock() {
-    const st = S.st; if (!st) return 'Niet verbonden.';
+    const st = S.st; if (!st) return t('Niet verbonden.');
     const r = st.room, me = st.me;
-    if (r.phase !== 'betting') return r.phase === 'lobby' ? 'De Host moet eerst een ronde starten.' : 'De inzetten zijn niet open.';
-    if (r.paused) return 'Het spel is gepauzeerd.';
-    if (me.spectator) return 'Je bent toeschouwer.';
-    if (me.sitOut) return 'Je doet mee vanaf de volgende ronde.';
+    if (r.phase !== 'betting') return r.phase === 'lobby' ? t('De Host moet eerst een ronde starten.') : t('De inzetten zijn niet open.');
+    if (r.paused) return t('Het spel is gepauzeerd.');
+    if (me.spectator) return t('Je bent toeschouwer.');
+    if (me.sitOut) return t('Je doet mee vanaf de volgende ronde.');
     return null;
   }
 
@@ -309,7 +315,7 @@
     const block = betBlock();
     if (block) return toast(block, 'warn');
     const me = S.st.me;
-    if (S.chip > me.chips) return toast('Niet genoeg fiches voor deze fiche.', 'warn');
+    if (S.chip > me.chips) return toast(t('Niet genoeg fiches voor deze fiche.'), 'warn');
     Sound.chip();
     send({ t: 'bet', key, amount: S.chip });
   }
@@ -359,13 +365,13 @@
     // dozijnen
     const dozenLabel = ['1e 12', '2e 12', '3e 12'];
     for (let d = 0; d < 3; d++) {
-      addCell('dozen:' + (d + 1), dozenLabel[d], HZ ? rect(2 + 8 * d, 6, 10 + 8 * d, 8) : rect(2, 2 + 8 * d, 4, 10 + 8 * d), 'out', defs['dozen:' + (d + 1)].nums);
+      addCell('dozen:' + (d + 1), t(dozenLabel[d]), HZ ? rect(2 + 8 * d, 6, 10 + 8 * d, 8) : rect(2, 2 + 8 * d, 4, 10 + 8 * d), 'out', defs['dozen:' + (d + 1)].nums);
     }
     // buiteninzetten 1:1
     const outside = [['low', '1-18'], ['even', 'EVEN'], ['red', ''], ['black', ''], ['odd', 'ONEVEN'], ['high', '19-36']];
     outside.forEach(([key, label], i) => {
       const r = HZ ? rect(2 + 4 * i, 8, 6 + 4 * i, 10) : rect(0, 2 + 4 * i, 2, 6 + 4 * i);
-      addCell(key, label, r, 'out', defs[key].nums, key === 'red' || key === 'black' ? { diamond: key } : {});
+      addCell(key, t(label), r, 'out', defs[key].nums, key === 'red' || key === 'black' ? { diamond: key } : {});
     });
 
     // hotspots voor inzetten tussen vakjes
@@ -423,17 +429,17 @@
 
   function drawTable() {
     const m = S.model;
-    const t = $('#table');
-    t.replaceChildren();
-    t.style.gridTemplateColumns = `repeat(${m.C}, 1fr)`;
-    t.style.gridTemplateRows = `repeat(${m.R}, var(--u))`;
+    const tbl = $('#table');
+    tbl.replaceChildren();
+    tbl.style.gridTemplateColumns = `repeat(${m.C}, 1fr)`;
+    tbl.style.gridTemplateRows = `repeat(${m.R}, var(--u))`;
 
     const hover = (nums, on) => {
-      for (const c of t.querySelectorAll('.cell[data-n]')) c.classList.toggle('hl', on && nums.includes(Number(c.dataset.n)));
+      for (const c of tbl.querySelectorAll('.cell[data-n]')) c.classList.toggle('hl', on && nums.includes(Number(c.dataset.n)));
     };
     for (const c of m.cells) {
       const el = h('div', {
-        class: 'cell ' + c.cls, role: 'button', tabindex: '0', 'data-key': c.key, 'aria-label': c.diamond ? (c.diamond === 'red' ? 'Rood' : 'Zwart') : c.label,
+        class: 'cell ' + c.cls, role: 'button', tabindex: '0', 'data-key': c.key, 'aria-label': c.diamond ? (c.diamond === 'red' ? t('Rood') : t('Zwart')) : c.label,
         onclick: () => placeBet(c.key),
         onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); placeBet(c.key); } },
         onpointerenter: () => hover(c.nums, true),
@@ -442,7 +448,7 @@
       if (c.n != null) el.dataset.n = c.n;
       el.style.gridColumn = `${c.r.col} / span ${c.r.cs}`;
       el.style.gridRow = `${c.r.row} / span ${c.r.rs}`;
-      t.append(el);
+      tbl.append(el);
     }
     const ov = h('div', { class: 'overlay', id: 'overlay' });
     for (const s of m.spots) {
@@ -457,7 +463,7 @@
       ov.append(el);
     }
     const chips = h('div', { class: 'overlay', id: 'chips-layer', style: 'z-index:8' });
-    t.append(ov, chips);
+    tbl.append(ov, chips);
   }
 
   function renderBets() {
@@ -651,8 +657,8 @@
     ban.replaceChildren(
       h('span', { class: 'num ' + m.color, text: m.label }),
       h('span', { class: 'txt' },
-        h('span', { text: `${{ red: 'Rood', black: 'Zwart', green: 'Groen' }[m.color]} ${m.label}` }),
-        mine ? h('span', { class: 'net ' + (mine.net >= 0 ? 'plus' : 'minus'), text: (mine.net >= 0 ? '+' : '') + fmt(mine.net) }) : h('span', { text: 'Geen inzet' })),
+        h('span', { text: `${t({ red: 'Rood', black: 'Zwart', green: 'Groen' }[m.color])} ${m.label}` }),
+        mine ? h('span', { class: 'net ' + (mine.net >= 0 ? 'plus' : 'minus'), text: (mine.net >= 0 ? '+' : '') + fmt(mine.net) }) : h('span', { text: t('Geen inzet') })),
     );
     ban.hidden = false;
     if (mine) { if (mine.net > 0) Sound.win(); else if (mine.net < 0) Sound.lose(); }
@@ -670,19 +676,19 @@
     box.replaceChildren(...st.players.map((p) => {
       const tags = [];
       if (p.host) tags.push('👑 Host');
-      if (p.spectator) tags.push('toeschouwer');
+      if (p.spectator) tags.push(t('toeschouwer'));
       if (!p.connected) tags.push('offline');
-      if (p.muted) tags.push('gedempt');
-      if (p.sitOut && !p.spectator) tags.push('wacht');
-      if (p.chips === 0 && !p.staked && !p.spectator) tags.push('blut');
+      if (p.muted) tags.push(t('gedempt'));
+      if (p.sitOut && !p.spectator) tags.push(t('wacht'));
+      if (p.chips === 0 && !p.staked && !p.spectator) tags.push(t('blut'));
       const av = h('span', { class: 'avatar', text: p.name.slice(0, 1).toUpperCase() });
       av.style.background = `hsl(${hue(p.name)} 45% 32%)`;
       return h('div', { class: 'player' + (p.id === st.me.id ? ' me' : '') + (p.connected ? '' : ' off') },
         av,
-        h('div', { class: 'pname' }, h('b', { text: p.name + (p.id === st.me.id ? ' (jij)' : '') }), h('span', { class: 'tags', text: tags.join(' · ') })),
+        h('div', { class: 'pname' }, h('b', { text: p.name + (p.id === st.me.id ? t(' (jij)') : '') }), h('span', { class: 'tags', text: tags.join(' · ') })),
         h('div', { class: 'pbal' }, h('b', { text: fmt(p.chips) }),
           p.staked ? h('small', { text: `+${fmt(p.staked)} in` }) : (p.net != null ? h('small', { class: 'pnet ' + (p.net >= 0 ? 'plus' : 'minus'), text: (p.net >= 0 ? '+' : '') + fmt(p.net) }) : null)),
-        iAmHost && p.id !== st.me.id ? h('button', { class: 'btn small iconbtn', title: 'Speler beheren', 'aria-label': `Beheer ${p.name}`, onclick: () => openPlayerModal(p.id) }, '⚙') : h('span'),
+        iAmHost && p.id !== st.me.id ? h('button', { class: 'btn small iconbtn', title: t('Speler beheren'), 'aria-label': t('Beheer {name}', { name: p.name }), onclick: () => openPlayerModal(p.id) }, '⚙') : h('span'),
       );
     }));
   }
@@ -692,7 +698,7 @@
     const box = $('#chat-log');
     const near = box.scrollHeight - box.scrollTop - box.clientHeight < 60;
     box.replaceChildren(...S.chat.slice(-60).map((m) => (m.sys
-      ? h('div', { class: 'chat-line sys', text: m.text })
+      ? h('div', { class: 'chat-line sys', text: tr(m.text) })
       : h('div', { class: 'chat-line' }, h('span', { class: 'who', text: (m.host ? '👑 ' : '') + m.name + ': ' }), m.text))));
     if (near || force) box.scrollTop = box.scrollHeight;
   }
@@ -710,41 +716,41 @@
     const num = (key, label, min, max) => {
       const input = h('input', { type: 'number', inputmode: 'numeric', min, max, step: '1', onchange: (e) => {
         const v = Number(e.target.value);
-        if (!Number.isInteger(v)) { toast('Vul een geheel getal in.', 'error'); return; }
+        if (!Number.isInteger(v)) { toast(t('Vul een geheel getal in.'), 'error'); return; }
         send({ t: 'settings', settings: { [key]: v } });
       } });
       hostUI[key] = input;
       return h('label', null, label, input);
     };
     const sel = h('select', { onchange: (e) => send({ t: 'settings', settings: { variant: e.target.value } }) },
-      h('option', { value: 'european', text: 'Europees (0)' }), h('option', { value: 'american', text: 'Amerikaans (0 + 00)' }));
+      h('option', { value: 'european', text: t('Europees (0)') }), h('option', { value: 'american', text: t('Amerikaans (0 + 00)') }));
     hostUI.variant = sel;
 
-    hostUI.start = btn('▶ Start ronde', 'gold', () => send({ t: 'start' }));
-    hostUI.close = btn('Sluit inzetten', '', () => send({ t: 'closeBets' }));
-    hostUI.spin = btn('🎡 Draai wiel', '', () => send({ t: 'spin' }));
-    hostUI.extend = btn('+10 seconden', '', () => send({ t: 'extend', sec: 10 }));
-    hostUI.pause = btn('⏸ Pauzeer', '', () => send({ t: 'pause', value: !S.st.room.paused }));
+    hostUI.start = btn(t('▶ Start ronde'), 'gold', () => send({ t: 'start' }));
+    hostUI.close = btn(t('Sluit inzetten'), '', () => send({ t: 'closeBets' }));
+    hostUI.spin = btn(t('🎡 Draai wiel'), '', () => send({ t: 'spin' }));
+    hostUI.extend = btn(t('+10 seconden'), '', () => send({ t: 'extend', sec: 10 }));
+    hostUI.pause = btn(t('⏸ Pauzeer'), '', () => send({ t: 'pause', value: !S.st.room.paused }));
 
     p.replaceChildren(
-      h('h2', { text: '👑 Host-paneel' }),
+      h('h2', { text: t('👑 Host-paneel') }),
       h('div', { class: 'host-grid' }, hostUI.start, hostUI.close, hostUI.spin, hostUI.extend, hostUI.pause),
-      toggle('auto', 'Automatisch (rondes lopen vanzelf)'),
-      toggle('hostPlays', 'Ik speel zelf mee'),
-      toggle('chat', 'Chat aan'),
-      toggle('locked', 'Kamer vergrendeld'),
-      h('div', { class: 'host-sub', text: 'Instellingen' }),
+      toggle('auto', t('Automatisch (rondes lopen vanzelf)')),
+      toggle('hostPlays', t('Ik speel zelf mee')),
+      toggle('chat', t('Chat aan')),
+      toggle('locked', t('Kamer vergrendeld')),
+      h('div', { class: 'host-sub', text: t('Instellingen') }),
       h('div', { class: 'num-grid' },
-        num('betTime', 'Inzettijd (sec)', 15, 120), num('startChips', 'Startfiches', 10, 1000000),
-        num('minBet', 'Min. inzet per vak', 1, 100000), num('maxBet', 'Max. inzet per vak', 1, 1000000),
-        num('rebuyBonus', 'Herstart-bonus (0 = uit)', 0, 1000000), h('label', null, 'Variant', sel)),
-      h('div', { class: 'host-sub', text: 'Kamer' }),
+        num('betTime', t('Inzettijd (sec)'), 15, 120), num('startChips', t('Startfiches'), 10, 1000000),
+        num('minBet', t('Min. inzet per vak'), 1, 100000), num('maxBet', t('Max. inzet per vak'), 1, 1000000),
+        num('rebuyBonus', t('Herstart-bonus (0 = uit)'), 0, 1000000), h('label', null, t('Variant'), sel)),
+      h('div', { class: 'host-sub', text: t('Kamer') }),
       h('div', { class: 'host-grid' },
-        btn('Kopieer code', '', () => copy(S.me.code, 'Code gekopieerd')),
-        btn('Kopieer link', '', () => copy(inviteLink(), 'Link gekopieerd')),
-        btn('Iedereen resetten', '', () => { if (confirm('Alle spelers terugzetten naar het startsaldo? Lopende inzetten worden teruggegeven.')) send({ t: 'resetAll' }); }),
-        btn('Kamer sluiten', 'danger', () => { if (confirm('De kamer voor iedereen sluiten?')) send({ t: 'closeRoom' }); })),
-      h('p', { class: 'tags', text: 'Tip: klik op ⚙ bij een speler om fiches te geven, te dempen, te kicken of de Host-rol over te dragen.' }),
+        btn(t('Kopieer code'), '', () => copy(S.me.code, t('Code gekopieerd'))),
+        btn(t('Kopieer link'), '', () => copy(inviteLink(), t('Link gekopieerd'))),
+        btn(t('Iedereen resetten'), '', () => { if (confirm(t('Alle spelers terugzetten naar het startsaldo? Lopende inzetten worden teruggegeven.'))) send({ t: 'resetAll' }); }),
+        btn(t('Kamer sluiten'), 'danger', () => { if (confirm(t('De kamer voor iedereen sluiten?'))) send({ t: 'closeRoom' }); })),
+      h('p', { class: 'tags', text: t('Tip: klik op ⚙ bij een speler om fiches te geven, te dempen, te kicken of de Host-rol over te dragen.') }),
     );
     hostUI.built = true;
   }
@@ -760,7 +766,7 @@
     hostUI.close.disabled = !(r.phase === 'betting' && !paused);
     hostUI.spin.disabled = !((r.phase === 'betting' || r.phase === 'closed') && !paused);
     hostUI.extend.disabled = !(r.phase === 'betting' && !paused);
-    hostUI.pause.textContent = paused ? '▶ Hervat' : '⏸ Pauzeer';
+    hostUI.pause.textContent = paused ? t('▶ Hervat') : t('⏸ Pauzeer');
     const between = r.phase === 'lobby' || r.phase === 'results';
     for (const k of ['auto', 'chat', 'locked']) hostUI[k].checked = !!s[k];
     hostUI.hostPlays.checked = !!s.hostPlays;
@@ -778,10 +784,10 @@
     const modal = $('#modal');
     const close = () => { modal.hidden = true; modal.replaceChildren(); };
     const act = (obj, closeAfter) => () => { send(obj); if (closeAfter) close(); };
-    const setInput = h('input', { type: 'number', min: 0, step: 1, placeholder: 'Saldo instellen…', inputmode: 'numeric' });
-    modal.replaceChildren(h('div', { class: 'modal-card', role: 'dialog', 'aria-modal': 'true', 'aria-label': `Beheer ${p.name}` },
+    const setInput = h('input', { type: 'number', min: 0, step: 1, placeholder: t('Saldo instellen…'), inputmode: 'numeric' });
+    modal.replaceChildren(h('div', { class: 'modal-card', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('Beheer {name}', { name: p.name }) },
       h('h3', { text: p.name }),
-      h('div', { class: 'sub', text: `${fmt(p.chips)} fiches${p.connected ? '' : ' · offline'}` }),
+      h('div', { class: 'sub', text: t('{n} fiches', { n: fmt(p.chips) }) + (p.connected ? '' : ' · offline') }),
       h('div', { class: 'modal-grid' },
         h('button', { class: 'btn small', onclick: act({ t: 'chips', id, mode: 'add', amount: 100 }) }, '+100'),
         h('button', { class: 'btn small', onclick: act({ t: 'chips', id, mode: 'add', amount: 500 }) }, '+500'),
@@ -789,16 +795,16 @@
         h('button', { class: 'btn small', onclick: act({ t: 'chips', id, mode: 'add', amount: -500 }) }, '−500')),
       h('div', { class: 'set-row' }, setInput, h('button', { class: 'btn small gold', onclick: () => {
         const v = Number(setInput.value);
-        if (setInput.value === '' || !Number.isInteger(v) || v < 0) return toast('Vul een geheel getal ≥ 0 in.', 'error');
+        if (setInput.value === '' || !Number.isInteger(v) || v < 0) return toast(t('Vul een geheel getal ≥ 0 in.'), 'error');
         send({ t: 'chips', id, mode: 'set', amount: v }); close();
-      } }, 'Zet')),
+      } }, t('Zet'))),
       h('div', { class: 'modal-grid' },
-        h('button', { class: 'btn small', onclick: act({ t: 'resetPlayer', id }, true) }, 'Reset naar start'),
-        h('button', { class: 'btn small', onclick: act({ t: 'mute', id, value: !p.muted }, true) }, p.muted ? 'Dempen opheffen' : 'Dempen'),
-        h('button', { class: 'btn small', onclick: () => { if (confirm(`${p.name} Host maken?`)) { send({ t: 'transfer', id }); close(); } } }, '👑 Host maken'),
-        h('button', { class: 'btn small danger', onclick: () => { if (confirm(`${p.name} uit de kamer zetten?`)) { send({ t: 'kick', id }); close(); } } }, 'Kick'),
-        h('button', { class: 'btn small danger', onclick: () => { if (confirm(`${p.name} verbannen?`)) { send({ t: 'ban', id }); close(); } } }, 'Ban'),
-        h('button', { class: 'btn small ghost', onclick: close }, 'Sluiten')),
+        h('button', { class: 'btn small', onclick: act({ t: 'resetPlayer', id }, true) }, t('Reset naar start')),
+        h('button', { class: 'btn small', onclick: act({ t: 'mute', id, value: !p.muted }, true) }, p.muted ? t('Dempen opheffen') : t('Dempen')),
+        h('button', { class: 'btn small', onclick: () => { if (confirm(t('{name} Host maken?', { name: p.name }))) { send({ t: 'transfer', id }); close(); } } }, t('👑 Host maken')),
+        h('button', { class: 'btn small danger', onclick: () => { if (confirm(t('{name} uit de kamer zetten?', { name: p.name }))) { send({ t: 'kick', id }); close(); } } }, 'Kick'),
+        h('button', { class: 'btn small danger', onclick: () => { if (confirm(t('{name} verbannen?', { name: p.name }))) { send({ t: 'ban', id }); close(); } } }, 'Ban'),
+        h('button', { class: 'btn small ghost', onclick: close }, t('Sluiten'))),
     ));
     modal.hidden = false;
     modal.onclick = (e) => { if (e.target === modal) close(); };
@@ -814,7 +820,7 @@
   }
   function fallbackCopy(text, done) {
     const ta = h('textarea', { style: 'position:fixed;opacity:0' }); ta.value = text; document.body.append(ta); ta.select();
-    try { document.execCommand('copy'); done(); } catch (e) { toast(`Kopieer handmatig: ${text}`, 'warn'); }
+    try { document.execCommand('copy'); done(); } catch (e) { toast(t('Kopieer handmatig: {text}', { text }), 'warn'); }
     ta.remove();
   }
 
@@ -824,7 +830,7 @@
     const b = $('#btn-rejoin');
     if (last && Date.now() - last.ts < 2 * 60 * 1000 * 60 && !S.joined) {
       b.hidden = false;
-      b.textContent = `Terug naar kamer ${last.code} als ${last.name}`;
+      b.textContent = t('Terug naar kamer {code} als {name}', { code: last.code, name: last.name });
       b.onclick = () => { S.noReconnect = false; Sound.init(); request({ t: 'resume', code: last.code, token: last.token }); };
     } else b.hidden = true;
   }
@@ -832,14 +838,14 @@
   function getName() { return $('#inp-name').value.trim(); }
   $('#btn-create').addEventListener('click', () => {
     Sound.init(); S.noReconnect = false; showStartError('');
-    if (!getName()) return showStartError('Kies eerst een bijnaam.');
+    if (!getName()) return showStartError(t('Kies eerst een bijnaam.'));
     request({ t: 'create', name: getName() });
   });
   $('#btn-join').addEventListener('click', () => {
     Sound.init(); S.noReconnect = false; showStartError('');
     const code = $('#inp-code').value.trim().toUpperCase();
-    if (!getName()) return showStartError('Kies eerst een bijnaam.');
-    if (code.length !== 5) return showStartError('Een kamercode heeft 5 tekens.');
+    if (!getName()) return showStartError(t('Kies eerst een bijnaam.'));
+    if (code.length !== 5) return showStartError(t('Een kamercode heeft 5 tekens.'));
     request({ t: 'join', code, name: getName() });
   });
   $('#inp-code').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
@@ -848,14 +854,14 @@
   }
 
   // ------------------------------------------------------------------ overige knoppen
-  $('#btn-code').addEventListener('click', () => S.me && copy(S.me.code, 'Code gekopieerd'));
-  $('#btn-link').addEventListener('click', () => S.me && copy(inviteLink(), 'Link gekopieerd'));
+  $('#btn-code').addEventListener('click', () => S.me && copy(S.me.code, t('Code gekopieerd')));
+  $('#btn-link').addEventListener('click', () => S.me && copy(inviteLink(), t('Link gekopieerd')));
   $('#btn-sound').addEventListener('click', () => {
     Sound.on = !Sound.on; Sound.init(); store.set('localStorage', 'roulette.sound', Sound.on);
     $('#btn-sound').textContent = Sound.on ? '🔊' : '🔇';
     if (Sound.on) Sound.chip();
   });
-  $('#btn-leave').addEventListener('click', () => { if (confirm('De kamer verlaten?')) send({ t: 'leave' }); });
+  $('#btn-leave').addEventListener('click', () => { if (confirm(t('De kamer verlaten?'))) send({ t: 'leave' }); });
   $('#btn-undo').addEventListener('click', () => send({ t: 'undo' }));
   $('#btn-clear').addEventListener('click', () => send({ t: 'clear' }));
   $('#btn-repeat').addEventListener('click', () => send({ t: 'repeat' }));
@@ -872,8 +878,54 @@
   // Geluid mag pas starten na een klik of toets (browserregel)
   for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () => Sound.init(), { once: true, capture: true });
 
+  // ------------------------------------------------------------------ update log
+  const CL_KEY = 'roulette.seen';
+  function latestChange() { return (window.CHANGELOG || [])[0] || null; }
+  function renderChangelogDot() {
+    const latest = latestChange();
+    $('#cl-dot').hidden = !latest || store.get('localStorage', CL_KEY) === latest.id;
+  }
+  function openChangelog() {
+    const modal = $('#modal');
+    const close = () => { modal.hidden = true; modal.replaceChildren(); };
+    const lang = I18N.lang;
+    const entries = (window.CHANGELOG || []).map((e) => h('section', { class: 'cl-entry' },
+      h('div', { class: 'cl-date', text: new Date(e.date + 'T12:00:00').toLocaleDateString(lang === 'en' ? 'en-GB' : 'nl-BE', { day: 'numeric', month: 'long', year: 'numeric' }) }),
+      h('h4', { text: e.title[lang] || e.title.en }),
+      h('ul', null, (e.items[lang] || e.items.en).map((i) => h('li', { text: i })))));
+    modal.replaceChildren(h('div', { class: 'modal-card cl-card', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('Wat is er nieuw') },
+      h('h3', { text: t('Wat is er nieuw') }), entries, h('button', { class: 'btn small gold', onclick: close }, t('Sluiten'))));
+    modal.hidden = false;
+    modal.onclick = (e) => { if (e.target === modal) close(); };
+    const latest = latestChange();
+    if (latest) store.set('localStorage', CL_KEY, latest.id);
+    renderChangelogDot();
+  }
+  $('#btn-changelog').addEventListener('click', openChangelog);
+
+  // ------------------------------------------------------------------ taal
+  function setLang(l) {
+    I18N.set(l);
+    I18N.applyStatic(document);
+    showStartError('');
+    renderRejoin();
+    if (S.joined && S.st) {
+      S.modelKey = '';          // tafel opnieuw tekenen met vertaalde labels
+      hostUI.built = false;     // host-paneel opnieuw opbouwen
+      $('#result-banner').hidden = true;
+      renderAll();
+      renderChat(true);
+    }
+  }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('.lang-switch button');
+    if (b) setLang(b.dataset.lang);
+  });
+
   // ------------------------------------------------------------------ start
   (function init() {
+    I18N.applyStatic(document);
+    renderChangelogDot();
     const params = new URLSearchParams(location.search);
     const room = (params.get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
     if (room) $('#inp-code').value = room;

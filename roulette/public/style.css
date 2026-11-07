@@ -285,3 +285,26 @@ h1 {
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* ---------- taalknop (EN | NL) ---------- */
+.lang-switch { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; flex: none; }
+.lang-switch button { appearance: none; border: 0; background: transparent; color: var(--muted); padding: 0 11px; min-height: 34px; font-weight: 700; font-size: 0.82rem; letter-spacing: 0.06em; cursor: pointer; touch-action: manipulation; }
+.lang-switch button + button { border-left: 1px solid var(--line); }
+.lang-switch button[aria-pressed="true"] { background: var(--gold); color: #2b1a02; }
+.lang-switch button:not([aria-pressed="true"]):hover { background: rgba(255, 255, 255, 0.1); color: var(--text); }
+.start-lang { position: absolute; top: 14px; right: 14px; z-index: 2; }
+#view-start { position: relative; }
+
+/* ---------- update log ---------- */
+.changelog-btn { position: fixed; left: 14px; bottom: 14px; z-index: 30; display: inline-flex; align-items: center; gap: 8px; padding: 8px 15px; border-radius: 999px; background: rgba(3, 14, 10, 0.92); border: 1px solid var(--line); color: var(--gold-hi); font: inherit; font-weight: 600; font-size: 0.85rem; cursor: pointer; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4); touch-action: manipulation; }
+.changelog-btn:hover { border-color: var(--gold); background: rgba(20, 50, 38, 0.95); }
+.changelog-btn:focus-visible { outline: 2px solid var(--gold-hi); outline-offset: 2px; }
+body.in-game .changelog-btn { position: relative; left: auto; bottom: auto; margin: 0 0 26px 16px; z-index: 1; } /* in het spel: onderaan de pagina, zodat het de fiches niet bedekt */
+.cl-dot { width: 9px; height: 9px; border-radius: 50%; background: #ff5b5b; box-shadow: 0 0 0 3px rgba(255, 91, 91, 0.3); }
+.cl-card { width: min(500px, 100%); }
+.cl-entry { margin: 16px 0 0; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.cl-entry:last-of-type { border-bottom: 0; }
+.cl-date { font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.cl-entry h4 { margin: 3px 0 8px; font-size: 1.02rem; color: var(--text); }
+.cl-entry ul { margin: 0; padding-left: 1.1em; display: grid; gap: 6px; font-size: 0.9rem; line-height: 1.4; color: #d8e2da; }
+.cl-card > .btn { margin-top: 8px; width: 100%; }

@@ -1,112 +1,127 @@
-Roulette Royale: multiplayer roulette with room codes
+# Roulette Royale — multiplayer roulette met kamercodes
 
-Play roulette with friends: one person creates a room and shares the code or link, everyone else joins.
-Virtual chips only. No real money, no payments.
+Speel roulette met vrienden: één persoon maakt een kamer en deelt de code of link, de rest joint.
+**Alleen virtuele fiches. Geen echt geld, geen betalingen.**
 
-The project needs no external packages (no npm install). Just Node.js 18 or newer.
+Het project heeft **geen externe pakketten** nodig (geen `npm install`). Alleen Node.js 18 of nieuwer.
 
-Quick start
-bash
-node server.js        # or: npm start
+## Snel starten
 
-Then open http://localhost:3000.
+```bash
+node server.js        # of: npm start
+```
 
-Enter a nickname and click Maak kamer (Create room). You are now the Host.
-Others open the same site, enter a nickname plus the 5-character room code (or open your link, which pre-fills the code) and click Join.
-As Host, click Start ronde (Start round) in the Host panel. Everyone places chips on the table, then the wheel spins.
-Testing with multiple tabs
+Open daarna <http://localhost:3000>.
 
-Open several tabs on http://localhost:3000. Each tab is its own player (the session is stored per tab, so tabs don’t interfere with each other). Refreshing a tab brings you back with your balance. If you close a tab and open a new one, the start screen shows a “Terug naar kamer …” (Back to room …) button.
+1. Vul een bijnaam in en klik **Maak kamer**. Jij bent nu de Host.
+2. Anderen openen dezelfde site, vullen bijnaam + de 5-letterige **kamercode** in (of openen je **link**, dan staat de code al ingevuld) en klikken **Join**.
+3. Als Host klik je in het Host-paneel op **Start ronde**. Iedereen zet fiches in op de tafel; daarna draait het wiel.
 
-Rules
+### Testen met meerdere tabbladen
+Open meerdere tabbladen op `http://localhost:3000`. Elk tabblad is een eigen speler (de sessie staat per tabblad, dus tabbladen komen elkaar niet in de weg). Een refresh in hetzelfde tabblad brengt je terug met je saldo. Sluit je een tabblad en open je een nieuw, dan verschijnt op het startscherm een knop **"Terug naar kamer …"**.
 
-European (0) or American (0 and 00), chosen by the Host between rounds.
+### Taal
+Bovenin (en op het startscherm) staat een **EN | NL**-knop. Standaard is het Engels; de keuze wordt onthouden. Vertalingen staan in `public/i18n.js`; de server blijft Nederlands sturen en de website vertaalt die berichten.
 
-Bet	Payout
-Straight (single number)	35:1
-Split (2 numbers)	17:1
-Street (3)	11:1
-Corner (4) and “first four” 0-1-2-3 (European only)	8:1
-Six line (6)	5:1
-Column, dozen	2:1
-Red/black, even/odd, 1-18 / 19-36	1:1
+## Spelregels
 
-On 0 (and 00) all outside bets lose. Click a cell, or the round click spots between cells (splits, streets, corners, six lines). Buttons: Ongedaan (Undo), Wis alles (Clear all), Herhaal vorige (Repeat previous), Verdubbel (Double).
+Europees (0) of Amerikaans (0 en 00), te kiezen door de Host tussen rondes.
 
-What can the Host do?
+| Inzet | Uitbetaling |
+|---|---|
+| Enkel nummer | 35:1 |
+| Split (2 nummers) | 17:1 |
+| Street (3) | 11:1 |
+| Corner (4) en "eerste vier" 0-1-2-3 (alleen Europees) | 8:1 |
+| Six line (6) | 5:1 |
+| Kolom, dozijn | 2:1 |
+| Rood/zwart, even/oneven, 1-18 / 19-36 | 1:1 |
 
-Everything is in the Host panel (only visible to the Host; the server checks permissions):
+Bij 0 (en 00) verliezen alle buiteninzetten. Klik op een vakje of op de **ronde klikpunten tussen vakjes** (splits, streets, corners, six lines). Knoppen: **Ongedaan**, **Wis alles**, **Herhaal vorige**, **Verdubbel**.
 
-Start a round, close betting, spin the wheel, +10 seconds, pause/resume
-Automatic mode on/off (rounds run by themselves, or everything manual)
-Betting time, starting chips, min/max bet per spot, rebuy bonus for players who go broke
-Variant: European or American (only between rounds)
-I play too on/off (off = croupier/spectator)
-Chat on/off, lock the room
-Per player (⚙ button): give/take/set chips, reset, mute, transfer the Host role, kick, ban
-Reset everyone to the starting balance, copy code/link, close the room
+## Wat kan de Host?
 
-If the Host drops for 60 seconds, the Host role automatically passes to the player who has been in the room the longest.
+Alles zit in het **Host-paneel** (alleen zichtbaar voor de Host; de server controleert de rechten):
 
-Room rules
-5-character code, without confusing characters (no O/0/I/1). Maximum 12 players.
-Duplicate nicknames are rejected. Nicknames are max. 16 characters.
-Gone or refreshed? Come back within 2 minutes with the same balance (session token).
-If you join in the middle of a round, you play from the next round.
-Out of chips? You stay in the room as a spectator until the Host gives you chips (or the rebuy bonus is on).
-Empty rooms are removed after 10 minutes.
-Going online without your own server (free, no sharing your IP)
+- Ronde starten, inzetten sluiten, wiel draaien, **+10 seconden**, pauzeren/hervatten
+- **Automatisch** aan/uit (rondes lopen vanzelf door, of alles handmatig)
+- Inzettijd, startfiches, min/max inzet per vak, **herstart-bonus** voor spelers die blut zijn
+- Variant: Europees of Amerikaans (alleen tussen rondes)
+- **Ik speel zelf mee** aan/uit (uit = croupier/toeschouwer)
+- Chat aan/uit, kamer **vergrendelen**
+- Per speler (knop ⚙): fiches geven/afnemen/instellen, resetten, dempen, **Host-rol overdragen**, kicken, verbannen
+- Iedereen resetten naar startsaldo, code/link kopiëren, **kamer sluiten**
 
-This way the app is always running and you get your own link like https://roulette-royale.onrender.com to share. Your own computer and IP are not involved.
+Als de Host 60 seconden wegvalt, gaat de Host-rol automatisch naar de speler die het langst in de kamer zit.
 
-Put the folder on GitHub (new repository; uploading files via “Add file > Upload files” also works).
-Create a free account at https://render.com, choose New > Blueprint (or New > Web Service) and connect your repository.
-With a Blueprint, Render picks up render.yaml automatically. With a Web Service, enter: Build command empty or echo ok, Start command node server.js, plan Free.
-After a minute or so you get the link. Open it, create a room and share the link or code.
+## Regels van de kamer
 
-Good to know about Render’s free tier:
+- Code van 5 tekens, zonder verwarrende tekens (geen O/0/I/1). Maximaal 12 spelers.
+- Dubbele bijnamen worden geweigerd. Bijnamen zijn max. 16 tekens.
+- Weg of refresh? Binnen 2 minuten terugkeren met hetzelfde saldo (sessie-token).
+- Join je midden in een ronde, dan speel je mee vanaf de volgende.
+- Geen fiches meer? Je blijft in de kamer als toeschouwer tot de Host fiches geeft (of de herstart-bonus aan staat).
+- Lege kamers worden na 10 minuten verwijderd.
 
-The service goes to sleep after 15 minutes without traffic and is awake again about a minute after someone opens the link. During a game, the messages keep it awake (the app also sends a ping itself every 2 minutes).
-If the service sleeps, open rooms are gone. Whoever opens it next waits a moment and creates a new room.
-There are 750 free hours per month, enough for a service that runs all month.
+## Online zetten zonder eigen server (gratis, geen IP delen)
 
-Other hosts that support WebSockets (Railway, Fly.io, Koyeb or your own VPS) also work: start command node server.js, port from PORT.
+Zo draait de app altijd en krijg je een eigen link als `https://roulette-royale.onrender.com` om te delen. Je eigen computer en IP komen er niet aan te pas.
 
-Technical details for hosting
+1. Zet de map op GitHub (nieuw repository, bestanden uploaden via "Add file > Upload files" werkt ook).
+2. Maak een gratis account op <https://render.com> en kies **New > Blueprint** (of **New > Web Service**) en koppel je repository.
+3. Bij Blueprint pakt Render `render.yaml` vanzelf. Bij Web Service vul je in: Build command leeg of `echo ok`, Start command `node server.js`, plan **Free**.
+4. Na een minuutje krijg je de link. Open die, maak een kamer en deel de link of de code.
 
-The app is a single Node process with WebSockets. Pick a host that supports WebSockets.
+Goed om te weten over de gratis variant van Render:
+- De dienst gaat slapen na 15 minuten zonder verkeer en is na ongeveer een minuut weer wakker als iemand de link opent. Tijdens een spel houden de berichten hem wakker (de app stuurt zelf ook elke 2 minuten een ping).
+- Slaapt de dienst, dan zijn open kamers weg. De eerste die daarna opent, wacht even en maakt een nieuwe kamer.
+- Er zijn 750 gratis uren per maand, genoeg voor een dienst die de hele maand aanstaat.
 
-Build command: leave empty (nothing to install)
-Start command: node server.js
-The port is read from the PORT environment variable.
-Use HTTPS: the client then switches to wss:// by itself.
-Health check: /health
+Andere hosts die WebSockets ondersteunen (Railway, Fly.io, Koyeb of een eigen VPS) werken ook: start command `node server.js`, poort uit `PORT`.
 
-Environment variables (all optional): PORT, HOST, ALLOWED_ORIGINS (comma-separated, only needed if the page is loaded from a different domain than the server).
+## Technische details voor hosting
 
-Note: rooms live in memory. When the server restarts they are gone, and run only one instance (no load balancer with multiple copies).
+De app is één Node-proces met WebSockets. Kies een host die WebSockets ondersteunt (Render, Railway en Fly doen dat).
 
-Security in brief
-The server decides everything: the result (crypto.randomInt), balances, payouts and timers. The browser can’t forge anything.
-All input is validated server-side (amounts, bet keys, phase, permissions).
-Nicknames and chat are never rendered as HTML in the browser (no XSS). A Content-Security-Policy is enabled.
-WebSockets check the Origin, have a maximum message size (4 KB), rate limiting and a heartbeat.
-Banning works on nickname + session, so it is “best effort”: someone who picks another nickname and starts a new session can get back in. If you don’t want that, lock the room.
-Tests
-bash
-npm test      # or: node test/run.js   (Node 22+ for the network tests)
+- **Build command:** leeg laten (er is niets te installeren)
+- **Start command:** `node server.js`
+- De poort wordt uit de omgevingsvariabele `PORT` gelezen.
+- Gebruik HTTPS: de client schakelt dan zelf over op `wss://`.
+- Gezondheidscontrole: `/health`
 
-This runs 222 checks: all bet types and payouts, Host permissions, pause, reconnect, Host handover, spam/oversized messages, Origin checking and a real multiplayer round over WebSockets.
+Omgevingsvariabelen (allemaal optioneel): `PORT`, `HOST`, `ALLOWED_ORIGINS` (komma-gescheiden, alleen nodig als de pagina vanaf een andere domeinnaam dan de server wordt geladen).
 
-Files
-server.js          HTTP server for the site + WebSocket endpoint (/ws)
-lib/game.js        all game logic: rooms, rounds, host actions, payouts
-lib/ws.js          small custom WebSocket server (RFC 6455), no packages
-public/rules.js    bets + payouts (shared by server and browser)
-public/index.html  pages
-public/style.css   casino theme
-public/app.js      client: table, wheel, chat, host panel, sound
-test/              test suite
-Ideas for later
+**Let op:** kamers staan in het geheugen. Bij een herstart van de server zijn ze weg, en draai maar **één instantie** (geen load balancer met meerdere kopieën).
 
-Per-room leaderboard, accounts, extra bet types (e.g. neighbours/voisins, trios), custom chip colours, player avatars, saved room settings, a database so rooms survive a restart.
+## Beveiliging in het kort
+
+- De server beslist alles: uitslag (`crypto.randomInt`), saldo's, uitbetalingen en timers. De browser kan niets vervalsen.
+- Alle invoer wordt server-side gecontroleerd (bedragen, inzetsleutels, fase, rechten).
+- Bijnamen en chat worden in de browser nooit als HTML getoond (geen XSS). Content-Security-Policy staat aan.
+- WebSockets controleren de Origin, hebben een maximale berichtgrootte (4 KB), rate limiting en een heartbeat.
+- Verbannen werkt op bijnaam + sessie en is dus "best effort": wie een andere bijnaam kiest en een nieuwe sessie start, komt er weer in. Wil je dat niet, vergrendel dan de kamer.
+
+## Tests
+
+```bash
+npm test      # of: node test/run.js   (Node 22+ voor de netwerktests)
+```
+
+Dat draait 222 controles: alle inzettypes en uitbetalingen, host-rechten, pauze, reconnect, host-overdracht, spam/te grote berichten, Origin-controle en een echte multiplayer-ronde over WebSockets.
+
+## Bestanden
+
+```
+server.js          HTTP-server voor de site + WebSocket-endpoint (/ws)
+lib/game.js        alle spellogica: kamers, rondes, host-acties, uitbetalingen
+lib/ws.js          eigen kleine WebSocket-server (RFC 6455), geen pakketten
+public/rules.js    inzetten + uitbetalingen (gedeeld door server en browser)
+public/index.html  pagina's
+public/style.css   casino-thema
+public/app.js      client: tafel, wiel, chat, host-paneel, geluid
+test/              testsuite
+```
+
+## Ideeën voor later
+
+Ranglijst per kamer, accounts, extra inzettypes (bv. buurnummers/voisins, trio's), eigen fichekleuren, spelers-avatars, opgeslagen kamerinstellingen, database zodat kamers een herstart overleven.
