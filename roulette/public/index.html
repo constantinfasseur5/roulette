@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07281d">
+  <title>Roulette Royale</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23b3202a' stroke='%23d6b25e' stroke-width='2'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23d6b25e'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="toasts" aria-live="polite"></div>
+  <div id="conn-banner" hidden>Verbinding verbroken. Opnieuw verbinden…</div>
+
+  <!-- ===================== STARTSCHERM ===================== -->
+  <section id="view-start" class="view">
+    <div class="start-card">
+      <div class="logo-chip" aria-hidden="true"></div>
+      <h1>Roulette Royale</h1>
+      <p class="tagline">Speel samen met vrienden. <b>Alleen virtuele fiches, geen echt geld.</b></p>
+
+      <label class="field">Bijnaam
+        <input id="inp-name" maxlength="16" autocomplete="nickname" placeholder="Bijv. LuckyLuke">
+      </label>
+
+      <button id="btn-create" class="btn gold big">Maak kamer</button>
+
+      <div class="or"><span>of join een kamer</span></div>
+
+      <div class="join-row">
+        <label class="field grow">Kamercode
+          <input id="inp-code" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="ABCDE" class="code-input">
+        </label>
+        <button id="btn-join" class="btn big">Join</button>
+      </div>
+
+      <button id="btn-rejoin" class="btn ghost" hidden></button>
+      <p id="start-error" class="form-error" role="alert"></p>
+      <p class="fine">Alleen virtuele fiches - geen echt geld.</p>
+    </div>
+  </section>
+
+  <!-- ===================== SPEELSCHERM ===================== -->
+  <section id="view-game" class="view" hidden>
+    <header class="topbar">
+      <button id="btn-code" class="codechip" title="Klik om de code te kopiëren">
+        <span class="lbl">KAMER</span><b id="room-code">-----</b>
+      </button>
+      <button id="btn-link" class="btn small ghost" title="Kopieer uitnodigingslink">Link kopiëren</button>
+      <div class="phase" id="phase"><span id="phase-label"></span><span id="timer"></span></div>
+      <button id="btn-sound" class="btn small ghost" title="Geluid aan/uit" aria-label="Geluid aan of uit">🔊</button>
+      <button id="btn-leave" class="btn small ghost">Verlaat</button>
+    </header>
+
+    <main class="layout">
+      <div class="main-col">
+        <div class="stage">
+          <div class="wheel-wrap" id="wheel-wrap">
+            <canvas id="wheel" aria-label="Roulettewiel"></canvas>
+            <div id="result-banner" hidden></div>
+            <div id="pause-badge" hidden>⏸ Gepauzeerd</div>
+          </div>
+          <div class="stage-info">
+            <div class="balance">
+              <span class="lbl">Jouw fiches</span>
+              <b id="my-chips">0</b>
+              <small id="my-staked"></small>
+            </div>
+            <div class="lbl">Laatste uitslagen</div>
+            <div id="history" class="history"></div>
+            <div id="hotcold" class="hotcold"></div>
+            <div id="hint" class="hint"></div>
+          </div>
+        </div>
+
+        <div class="table-wrap" id="table-wrap">
+          <div id="table" class="table"></div>
+        </div>
+
+        <div class="controls" id="controls">
+          <div class="chip-row" id="chip-row"></div>
+          <div class="action-row">
+            <button class="btn small" id="btn-undo">↶ Ongedaan</button>
+            <button class="btn small" id="btn-clear">Wis alles</button>
+            <button class="btn small" id="btn-repeat">Herhaal vorige</button>
+            <button class="btn small" id="btn-double">Verdubbel</button>
+          </div>
+        </div>
+      </div>
+
+      <aside class="side-col">
+        <section id="host-panel" class="card" hidden></section>
+
+        <section class="card">
+          <h2>Spelers <span id="player-count" class="count"></span></h2>
+          <div id="players" class="players"></div>
+        </section>
+
+        <section class="card chat-card">
+          <h2>Chat</h2>
+          <div id="chat-log" class="chat-log"></div>
+          <form id="chat-form" class="chat-form" autocomplete="off">
+            <input id="chat-input" maxlength="200" placeholder="Typ een bericht…">
+            <button class="btn small gold" type="submit">Stuur</button>
+          </form>
+        </section>
+      </aside>
+    </main>
+  </section>
+
+  <div id="modal" class="modal" hidden></div>
+
+  <script src="rules.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
