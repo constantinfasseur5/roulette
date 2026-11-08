@@ -23,6 +23,11 @@ Open meerdere tabbladen op `http://localhost:3000`. Elk tabblad is een eigen spe
 ### Taal
 Bovenin (en op het startscherm) staat een **EN | NL**-knop. Standaard is het Engels; de keuze wordt onthouden. Vertalingen staan in `public/i18n.js`; de server blijft Nederlands sturen en de website vertaalt die berichten.
 
+### Avatar, ranglijst en statistieken
+- Kies een **avatar** (emoji) en **kleur** op het startscherm (knop naast de bijnaam) of in de kamer met de **✎**-knop. De keuze wordt in je browser onthouden. Je kleur staat ook als rand om je fiches op de tafel.
+- De spelerslijst is een **ranglijst**: de rijkste bovenaan, met 🥇🥈🥉 en ▲▼ voor de plaatsverandering na de laatste ronde. De knop **🏆 Ranglijst** toont een podium met fiches, resultaat t.o.v. de start en winstpercentage.
+- **Klik op een speler** voor statistieken: rondes, gewonnen, grootste winst/verlies, totaal ingezet, totaal resultaat en favoriete inzetten. De Host zet statistieken terug met "reset speler" of "iedereen resetten".
+
 ## Spelregels
 
 Europees (0) of Amerikaans (0 en 00), te kiezen door de Host tussen rondes.
@@ -51,6 +56,7 @@ Alles zit in het **Host-paneel** (alleen zichtbaar voor de Host; de server contr
 - Chat aan/uit, kamer **vergrendelen**
 - Per speler (knop ⚙): fiches geven/afnemen/instellen, resetten, dempen, **Host-rol overdragen**, kicken, verbannen
 - Iedereen resetten naar startsaldo, code/link kopiëren, **kamer sluiten**
+- **Opgeslagen instellingen:** bewaar je kamerinstellingen onder een naam (tot 8, alleen in jouw browser) en laad ze met één klik in een nieuwe kamer. Variant en min/max inzet laden alleen tussen rondes.
 
 Als de Host 60 seconden wegvalt, gaat de Host-rol automatisch naar de speler die het langst in de kamer zit.
 
@@ -107,7 +113,7 @@ Omgevingsvariabelen (allemaal optioneel): `PORT`, `HOST`, `ALLOWED_ORIGINS` (kom
 npm test      # of: node test/run.js   (Node 22+ voor de netwerktests)
 ```
 
-Dat draait 244 controles: alle inzettypes en uitbetalingen, host-rechten, pauze, reconnect, host-overdracht, spam/te grote berichten, Origin-controle en een echte multiplayer-ronde over WebSockets.
+Dat draait 269 controles: alle inzettypes en uitbetalingen, host-rechten, pauze, reconnect, host-overdracht, spam/te grote berichten, Origin-controle en een echte multiplayer-ronde over WebSockets.
 
 ## Bestanden
 
@@ -118,10 +124,12 @@ lib/ws.js          eigen kleine WebSocket-server (RFC 6455), geen pakketten
 public/rules.js    inzetten + uitbetalingen (gedeeld door server en browser)
 public/index.html  pagina's
 public/style.css   casino-thema
-public/app.js      client: tafel, wiel, chat, host-paneel, geluid
+public/app.js      client: tafel, wiel, chat, host-paneel, geluid, ranglijst, profiel
+public/i18n.js     vertalingen (EN/NL)
+public/changelog.js  de Update log op de site
 test/              testsuite
 ```
 
 ## Ideeën voor later
 
-Ranglijst per kamer, accounts, extra inzettypes (bv. buurnummers/voisins, trio's), eigen fichekleuren, spelers-avatars, opgeslagen kamerinstellingen, database zodat kamers een herstart overleven.
+Accounts, extra inzettypes (bv. buurnummers/voisins, trio's), prestaties, meekijk-link, database zodat kamers een herstart overleven.
