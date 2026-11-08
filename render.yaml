@@ -1,9 +1,0 @@
-# Render Blueprint: maakt de gratis webdienst automatisch aan.
-services:
-  - type: web
-    name: roulette-royale
-    runtime: node
-    plan: free
-    buildCommand: "echo geen build nodig"
-    startCommand: node server.js
-    healthCheckPath: /health
