@@ -95,7 +95,7 @@ Omgevingsvariabelen (allemaal optioneel): `PORT`, `HOST`, `ALLOWED_ORIGINS` (kom
 
 ## Beveiliging in het kort
 
-- De server beslist alles: uitslag (`crypto.randomInt`), saldo's, uitbetalingen en timers. De browser kan niets vervalsen.
+- De server beslist alles: uitslag (`crypto.randomInt`, tenzij de Host als spelleider zelf een getal vastzet), saldo's, uitbetalingen en timers. De browser kan niets vervalsen.
 - Alle invoer wordt server-side gecontroleerd (bedragen, inzetsleutels, fase, rechten).
 - Bijnamen en chat worden in de browser nooit als HTML getoond (geen XSS). Content-Security-Policy staat aan.
 - WebSockets controleren de Origin, hebben een maximale berichtgrootte (4 KB), rate limiting en een heartbeat.
@@ -107,7 +107,7 @@ Omgevingsvariabelen (allemaal optioneel): `PORT`, `HOST`, `ALLOWED_ORIGINS` (kom
 npm test      # of: node test/run.js   (Node 22+ voor de netwerktests)
 ```
 
-Dat draait 222 controles: alle inzettypes en uitbetalingen, host-rechten, pauze, reconnect, host-overdracht, spam/te grote berichten, Origin-controle en een echte multiplayer-ronde over WebSockets.
+Dat draait 244 controles: alle inzettypes en uitbetalingen, host-rechten, pauze, reconnect, host-overdracht, spam/te grote berichten, Origin-controle en een echte multiplayer-ronde over WebSockets.
 
 ## Bestanden
 

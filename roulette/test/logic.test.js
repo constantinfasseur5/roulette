@@ -430,6 +430,61 @@ async function run() {
   ok(room().players.get(E.id).chips === 250, 'blut gespeelde speler krijgt herstart-bonus');
   send(H, { t: 'settings', settings: { rebuyBonus: 0 } });
 
+  group('Host kiest het getal');
+  await sleep(2000); // rate-limit-budget van de Host-verbinding aanvullen (20 berichten/s)
+  A.clear();
+  send(A, { t: 'forceNext', value: 7 });
+  eq(A.lastErr() && A.lastErr().code, 'nothost', 'speler mag geen getal kiezen');
+  if (room().settings.variant !== 'european') send(H, { t: 'settings', settings: { variant: 'european' } });
+  eq(room().settings.variant, 'european', 'test start op het Europese wiel');
+  if (room().phase !== 'betting') send(H, { t: 'start' });
+  eq(room().phase, 'betting', 'nieuwe ronde loopt (inzetten open)');
+  H.clear();
+  send(H, { t: 'forceNext', value: 99 });
+  ok(/bestaat niet/.test(H.lastErr().msg), 'getal buiten het wiel wordt geweigerd');
+  H.clear();
+  send(H, { t: 'forceNext', value: 37 });
+  ok(/bestaat niet/.test(H.lastErr().msg), '00 kan niet op het Europese wiel');
+  H.clear();
+  send(H, { t: 'forceNext', value: 'zeven' });
+  ok(H.lastErr(), 'geen getal wordt geweigerd');
+  send(H, { t: 'forceNext', value: 23 });
+  await flush();
+  eq(H.state.me.forceNext, 23, 'Host ziet zijn eigen keuze in de status');
+  eq(A.state.me.forceNext, null, 'andere spelers krijgen de keuze niet vooraf te zien');
+  results.push(9); // het toeval zou 9 geven; de Host-keuze wint
+  C.clear();
+  send(H, { t: 'spin' });
+  const fSpin = C.last('spin');
+  ok(fSpin && fSpin.result === 23, 'spin-bericht: 23');
+  ok(!C.msgs.some((m) => m.t === 'toast' && /Host/.test(m.text)), 'er gaat geen melding over de Host-keuze naar de spelers');
+  ok(fSpin.forced === undefined, 'spin-bericht bevat geen extra markering');
+  eq(room().forceNext, null, 'keuze geldt maar één keer');
+  H.clear();
+  send(H, { t: 'forceNext', value: 4 });
+  ok(/geen getal kiezen/.test(H.lastErr().msg), 'tijdens het draaien kan het getal niet meer wijzigen');
+  await sleep(120);
+  const fRes = C.last('result');
+  ok(fRes && fRes.result === 23 && fRes.forced === undefined, 'result-bericht: 23, zonder markering');
+  eq(A.state.room.history[0], 23, 'uitslagenlijst: 23');
+  ok(A.state.room.historyForced === undefined, 'uitslagenlijst bevat geen aparte markering');
+  ok(A.state.room.lastResult.forced === undefined, 'lastResult bevat geen markering');
+  // Volgende ronde weer gewoon willekeurig
+  send(H, { t: 'start' });
+  send(H, { t: 'spin' });
+  await sleep(120);
+  eq(C.last('result').result, 9, 'volgende draai is weer willekeurig (9)');
+  // Variant wijzigen wist de keuze; 00 kan dan wel
+  send(H, { t: 'forceNext', value: 5 });
+  send(H, { t: 'settings', settings: { variant: 'american' } });
+  eq(room().forceNext, null, 'variant wijzigen wist de gekozen waarde');
+  send(H, { t: 'forceNext', value: 37 });
+  eq(room().forceNext, 37, 'op het Amerikaanse wiel kan 00 wel');
+  H.clear();
+  send(H, { t: 'forceNext', value: null });
+  eq(room().forceNext, null, 'null = weer willekeurig');
+  send(H, { t: 'settings', settings: { variant: 'european' } });
+
   group('Terugkeren (reconnect)');
   const Bn = B.token;
   const chipsB = room().players.get(B.id).chips;

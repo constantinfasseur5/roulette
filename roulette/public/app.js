@@ -726,6 +726,12 @@
       h('option', { value: 'european', text: t('Europees (0)') }), h('option', { value: 'american', text: t('Amerikaans (0 + 00)') }));
     hostUI.variant = sel;
 
+    // Verborgen Host-extra: getal van de volgende draai kiezen. Zichtbaar na het typen van de geheime zin in de chat.
+    hostUI.force = h('select', { onchange: (e) => send({ t: 'forceNext', value: e.target.value === '' ? null : Number(e.target.value) }) });
+    hostUI.forceBox = h('label', { class: 'force-box' }, t('🎯 Volgend getal'), hostUI.force);
+    hostUI.forceBox.hidden = true;
+    hostUI.forceVariant = null;
+
     hostUI.start = btn(t('▶ Start ronde'), 'gold', () => send({ t: 'start' }));
     hostUI.close = btn(t('Sluit inzetten'), '', () => send({ t: 'closeBets' }));
     hostUI.spin = btn(t('🎡 Draai wiel'), '', () => send({ t: 'spin' }));
@@ -735,6 +741,7 @@
     p.replaceChildren(
       h('h2', { text: t('👑 Host-paneel') }),
       h('div', { class: 'host-grid' }, hostUI.start, hostUI.close, hostUI.spin, hostUI.extend, hostUI.pause),
+      hostUI.forceBox,
       toggle('auto', t('Automatisch (rondes lopen vanzelf)')),
       toggle('hostPlays', t('Ik speel zelf mee')),
       toggle('chat', t('Chat aan')),
@@ -776,6 +783,31 @@
     hostUI.minBet.disabled = !between; hostUI.maxBet.disabled = !between;
     hostUI.variant.disabled = !between;
     if (document.activeElement !== hostUI.variant) hostUI.variant.value = s.variant;
+
+    hostUI.forceBox.hidden = !hostUp;
+    if (hostUp) {
+      if (hostUI.forceVariant !== s.variant) {          // opties volgen de gekozen variant (0 of 0 + 00)
+        hostUI.force.replaceChildren(h('option', { value: '', text: t('Willekeurig') }),
+          ...[...Rules.VARIANTS[s.variant].wheel].sort((a, b) => a - b).map((n) => h('option', { value: String(n), text: Rules.label(n) })));
+        hostUI.forceVariant = s.variant;
+      }
+      hostUI.force.disabled = r.phase === 'spinning';
+      if (document.activeElement !== hostUI.force) hostUI.force.value = st.me.forceNext == null ? '' : String(st.me.forceNext);
+    }
+  }
+
+  // Geheime zin in de chat: schakelt de extra Host-optie aan/uit en wordt NIET naar andere spelers gestuurd.
+  const HOSTUP_KEY = 'roulette.hostup';
+  const HOSTUP_PHRASE = 'host panel upgrade';
+  let hostUp = !!store.get('sessionStorage', HOSTUP_KEY);
+  function tryHostUpgrade(text) {
+    if (text.toLowerCase().replace(/\s+/g, ' ') !== HOSTUP_PHRASE) return false;
+    if (!S.st || !S.st.me.host) return false;            // niet-Hosts: gewoon een chatbericht
+    hostUp = !hostUp;
+    store.set('sessionStorage', HOSTUP_KEY, hostUp);
+    renderHost();
+    toast(hostUp ? t('Host-upgrade aan') : t('Host-upgrade uit'), 'info');
+    return true;
   }
 
   function openPlayerModal(id) {
@@ -871,6 +903,7 @@
     const inp = $('#chat-input');
     const text = inp.value.trim();
     if (!text) return;
+    if (tryHostUpgrade(text)) { inp.value = ''; return; }
     send({ t: 'chat', text });
     inp.value = '';
   });

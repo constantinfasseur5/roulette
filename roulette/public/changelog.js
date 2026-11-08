@@ -5,6 +5,19 @@
  */
 window.CHANGELOG = [
   {
+    id: '2026-11-08-startfix',
+    date: '2026-11-08',
+    title: { en: 'Start screen fix', nl: 'Startscherm aangepast' },
+    items: {
+      en: [
+        'Fixed the "Room code" field on the start screen, which looked cramped in English.',
+      ],
+      nl: [
+        'Het veld "Kamercode" op het startscherm is aangepast: het zag er in het Engels te krap uit.',
+      ],
+    },
+  },
+  {
     id: '2026-11-07-lang',
     date: '2026-11-07',
     title: { en: 'Language switch & update log', nl: 'Taalknop & update log' },

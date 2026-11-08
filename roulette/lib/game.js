@@ -183,7 +183,7 @@ class Game {
     }
 
     // ---- alleen Host ----
-    const hostCmds = ['start', 'closeBets', 'spin', 'extend', 'settings', 'pause', 'kick', 'ban', 'chips', 'resetPlayer', 'resetAll', 'mute', 'transfer', 'closeRoom'];
+    const hostCmds = ['start', 'closeBets', 'spin', 'forceNext', 'extend', 'settings', 'pause', 'kick', 'ban', 'chips', 'resetPlayer', 'resetAll', 'mute', 'transfer', 'closeRoom'];
     if (!hostCmds.includes(msg.t)) return this.err(conn, 'Onbekende actie.');
     if (room.hostId !== player.id) return this.err(conn, 'Alleen de Host mag dit.', 'nothost');
 
@@ -191,6 +191,7 @@ class Game {
       case 'start': return this.cmdStart(conn, room);
       case 'closeBets': return this.cmdCloseBets(conn, room);
       case 'spin': return this.cmdSpin(conn, room);
+      case 'forceNext': return this.cmdForceNext(conn, room, msg);
       case 'extend': return this.cmdExtend(conn, room, msg);
       case 'settings': return this.cmdSettings(conn, room, player, msg);
       case 'pause': return this.cmdPause(conn, room, !!msg.value);
@@ -257,6 +258,7 @@ class Game {
       spinTimer: null,
       spin: null,
       spins: [],       // nieuwste eerst, max 200
+      forceNext: null, // getal dat de Host voor de volgende draai koos (of null = willekeurig)
       lastResult: null,
       chatLog: [],
       bannedTokens: new Set(),
@@ -392,6 +394,7 @@ class Game {
     if (!target) return false;
     if (room.hostTimer) { clearTimeout(room.hostTimer); room.hostTimer = null; }
     room.hostId = target.id;
+    room.forceNext = null; // een gekozen getal hoort bij de vorige Host
     room.settings.hostPlays = true;
     if (old) old.spectator = false;
     target.spectator = false;
@@ -528,7 +531,11 @@ class Game {
     this.disarm(room);
     room.phase = 'spinning';
     const variant = room.settings.variant;
-    const result = this.o.nextResult(variant);
+    // Door de Host gekozen getal (geldt één keer).
+    const wanted = room.forceNext;
+    room.forceNext = null;
+    const forced = wanted != null && Rules.VARIANTS[variant].wheel.includes(wanted);
+    const result = forced ? wanted : this.o.nextResult(variant);
     room.spin = { result, variant, startedAt: Date.now(), duration: this.o.spinMs };
     room.spinTimer = setTimeout(() => this.finishSpin(room), this.o.spinMs + this.o.settleMs);
     this.toRoom(room, { t: 'spin', result, label: Rules.label(result), variant, duration: this.o.spinMs, round: room.roundNo });
@@ -697,6 +704,19 @@ class Game {
     if (e) this.err(conn, e);
   }
 
+  /** Host kiest het getal van de volgende draai (value: getal, of null = weer willekeurig). */
+  cmdForceNext(conn, room, msg) {
+    if (room.phase === 'spinning') return this.err(conn, 'Je kunt nu geen getal kiezen.');
+    if (msg.value == null || msg.value === '') {
+      room.forceNext = null;
+    } else {
+      const n = msg.value;
+      if (!isInt(n) || !Rules.VARIANTS[room.settings.variant].wheel.includes(n)) return this.err(conn, 'Dat getal bestaat niet in deze variant.');
+      room.forceNext = n;
+    }
+    this.touch(room);
+  }
+
   cmdExtend(conn, room, msg) {
     if (room.phase !== 'betting' || room.paused) return this.err(conn, 'Je kunt de tijd nu niet verlengen.');
     const sec = isInt(msg.sec) ? Math.max(5, Math.min(60, msg.sec)) : 10;
@@ -780,6 +800,7 @@ class Game {
       else if (room.phase === 'closed' || room.phase === 'results') this.disarm(room);
     }
     if (changes.includes('variant')) {
+      room.forceNext = null; // gekozen getal hoort bij het vorige wiel
       // Oude inzetten kunnen vakjes hebben die niet meer bestaan (00): opruimen.
       for (const p of room.players.values()) { p.prevBets = p.prevBets.filter(([k]) => Rules.buildBets(next.variant)[k]); }
     }
@@ -955,6 +976,8 @@ class Game {
         muted: me.muted,
         host: me.id === room.hostId,
         net: me.lastNet,
+        // alleen de Host ziet zijn eigen keuze vóór de draai; anderen krijgen niets
+        forceNext: me.id === room.hostId ? room.forceNext : null,
       },
     };
   }

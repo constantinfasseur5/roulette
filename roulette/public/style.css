@@ -156,6 +156,8 @@ h1 {
 .hist-n { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 0.78rem; font-weight: 700; border: 1px solid rgba(243, 220, 153, 0.6); }
 .hist-n.red, .num.red { background: var(--red); } .hist-n.black, .num.black { background: var(--black); } .hist-n.green, .num.green { background: var(--green); }
 .hist-n:first-child { transform: scale(1.18); box-shadow: 0 0 0 2px var(--gold); }
+.force-box { display: grid; gap: 4px; margin: 2px 0 10px; font-size: 0.8rem; color: var(--muted); }
+.force-box[hidden] { display: none; }
 .hotcold { display: grid; gap: 4px; font-size: 0.85rem; color: var(--muted); }
 .hotcold .row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .mini { display: inline-grid; place-items: center; min-width: 26px; height: 22px; padding: 0 5px; border-radius: 6px; font-weight: 700; font-size: 0.75rem; color: #fff; }
