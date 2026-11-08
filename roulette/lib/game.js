@@ -54,6 +54,10 @@ const LIMITS = {
 // ---------- hulpfuncties ----------
 const ctrlRe = /[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩﻿]/g;
 
+const newStats = () => ({ rounds: 0, wins: 0, losses: 0, staked: 0, net: 0, bestWin: 0, worstLoss: 0, kinds: {} });
+const cleanAvatar = (v) => (typeof v === 'string' && Rules.AVATARS.includes(v) ? v : '');
+const cleanColor = (v) => (typeof v === 'string' && Rules.COLORS.includes(v) ? v : '');
+
 function cleanName(v) {
   if (typeof v !== 'string') return '';
   return v.normalize('NFKC').replace(ctrlRe, '').replace(/[<>"'`\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16).trim();
@@ -179,6 +183,8 @@ class Game {
       case 'repeat': return this.cmdRepeat(conn, room, player);
       case 'double': return this.cmdDouble(conn, room, player);
       case 'chat': return this.cmdChat(conn, room, player, msg);
+      case 'profile': return this.cmdProfile(conn, room, player, msg);
+      case 'pstats': return this.cmdPStats(conn, room, msg);
       case 'leave': return this.cmdLeave(conn, room, player);
     }
 
@@ -209,7 +215,9 @@ class Game {
   // ======================================================================
   // Kamer maken / joinen / terugkeren
   // ======================================================================
-  newPlayer(room, name) {
+  newPlayer(room, name, prof) {
+    const used = new Set([...room.players.values()].map((x) => x.color));
+    const free = Rules.COLORS.find((c) => !used.has(c));
     const p = {
       id: crypto.randomBytes(4).toString('hex'),
       token: crypto.randomBytes(16).toString('hex'),
@@ -223,6 +231,10 @@ class Game {
       placements: [],        // voor "ongedaan maken": [{key, amount}]
       prevBets: [],          // inzetten van de vorige ronde: [[key, amount]]
       lastNet: null,
+      avatar: cleanAvatar(prof && prof.avatar),
+      color: cleanColor(prof && prof.color) || free || Rules.COLORS[room.players.size % Rules.COLORS.length],
+      stats: newStats(),
+      rankDelta: null,       // +n = n plaatsen omhoog na de laatste ronde
       sitOut: false,
       spectator: false,
       muted: false,
@@ -267,7 +279,7 @@ class Game {
       hostTimer: null,
     };
     this.rooms.set(code, room);
-    const p = this.newPlayer(room, name);
+    const p = this.newPlayer(room, name, msg);
     room.hostId = p.id;
     this.attach(room, p, conn, false);
   }
@@ -302,7 +314,7 @@ class Game {
       if (p.name.toLowerCase() === lower) return this.err(conn, 'Die bijnaam is al in gebruik in deze kamer.', 'name');
     }
 
-    const p = this.newPlayer(room, name);
+    const p = this.newPlayer(room, name, msg);
     p.sitOut = room.phase === 'betting' || room.phase === 'closed' || room.phase === 'spinning';
     this.attach(room, p, conn, false);
     this.note(room, `${p.name} doet mee.`, 'join');
@@ -505,6 +517,7 @@ class Game {
       p.bets.clear();
       p.placements.length = 0;
       p.lastNet = null;
+      p.rankDelta = null;
       p.sitOut = false;
     }
     const ms = room.settings.betTime * 1000;
@@ -549,6 +562,7 @@ class Game {
     const { result, variant } = room.spin;
     const defs = Rules.buildBets(variant);
     const rows = [];
+    const rankBefore = this.ranks(room);
 
     for (const p of room.players.values()) {
       p.lastNet = null;
@@ -562,6 +576,7 @@ class Game {
       p.chips = Math.min(MAX_CHIPS, p.chips + returned);
       p.lastNet = returned - stake;
       p.prevBets = [...p.bets];
+      this.recordStats(p, stake, returned - stake);
       rows.push({ id: p.id, name: p.name, stake, returned, net: returned - stake });
     }
 
@@ -586,8 +601,32 @@ class Game {
       }
     }
 
+    const rankAfter = this.ranks(room);
+    for (const p of room.players.values()) {
+      p.rankDelta = rankBefore.has(p.id) && rankAfter.has(p.id) ? rankBefore.get(p.id) - rankAfter.get(p.id) : null;
+    }
+
     this.autoContinue(room);
     this.touch(room, true);
+  }
+
+  /** Stand van zaken: speler-id → plaats (1 = rijkste). Toeschouwers doen niet mee. */
+  ranks(room) {
+    const list = [...room.players.values()].filter((p) => !p.spectator)
+      .sort((a, b) => b.chips - a.chips || a.joinedAt - b.joinedAt);
+    return new Map(list.map((p, i) => [p.id, i + 1]));
+  }
+
+  recordStats(p, stake, net) {
+    const st = p.stats;
+    st.rounds += 1; st.staked += stake; st.net += net;
+    if (net > 0) { st.wins += 1; st.bestWin = Math.max(st.bestWin, net); }
+    else if (net < 0) { st.losses += 1; st.worstLoss = Math.max(st.worstLoss, -net); }
+    const seen = new Set();
+    for (const k of p.bets.keys()) {
+      const kind = k.split(':')[0];
+      if (!seen.has(kind)) { seen.add(kind); st.kinds[kind] = (st.kinds[kind] || 0) + 1; }
+    }
   }
 
   // ======================================================================
@@ -702,6 +741,26 @@ class Game {
     if (room.paused) return this.err(conn, 'Het spel is gepauzeerd. Hervat eerst.');
     const e = this.spin(room);
     if (e) this.err(conn, e);
+  }
+
+  /** Eigen avatar en/of kleur wijzigen (alleen waarden uit de vaste lijsten). */
+  cmdProfile(conn, room, player, msg) {
+    if ('avatar' in msg) player.avatar = cleanAvatar(msg.avatar);
+    if ('color' in msg) { const c = cleanColor(msg.color); if (c) player.color = c; }
+    this.touch(room);
+  }
+
+  /** Statistieken van één speler opvragen (voor iedereen in de kamer). */
+  cmdPStats(conn, room, msg) {
+    const p = room.players.get(String(msg.id));
+    if (!p) return;
+    const st = p.stats;
+    const fav = Object.entries(st.kinds).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([kind, count]) => ({ kind, count }));
+    this.send(conn, {
+      t: 'pstats', id: p.id, name: p.name, avatar: p.avatar, color: p.color, chips: p.chips,
+      rounds: st.rounds, wins: st.wins, losses: st.losses, staked: st.staked, net: st.net,
+      bestWin: st.bestWin, worstLoss: st.worstLoss, fav,
+    });
   }
 
   /** Host kiest het getal van de volgende draai (value: getal, of null = weer willekeurig). */
@@ -851,6 +910,8 @@ class Game {
     this.unstake(t);
     t.chips = room.settings.startChips;
     t.lastNet = null;
+    t.rankDelta = null;
+    t.stats = newStats();
     this.note(room, `Host zette ${t.name} terug naar ${t.chips} fiches.`, 'chips');
     this.touch(room, true);
   }
@@ -861,6 +922,8 @@ class Game {
       this.unstake(p);
       p.chips = room.settings.startChips;
       p.lastNet = null;
+      p.rankDelta = null;
+      p.stats = newStats();
     }
     this.note(room, `Iedereen is teruggezet naar ${room.settings.startChips} fiches.`, 'chips');
     this.touch(room, true);
@@ -931,6 +994,7 @@ class Game {
   stateFor(room, me) {
     const now = Date.now();
     const showStake = room.phase !== 'results'; // na de uitbetaling staat niets meer "in de pot"
+    const ranks = this.ranks(room);
     const players = [...room.players.values()]
       .sort((a, b) => a.joinedAt - b.joinedAt)
       .map((p) => ({
@@ -944,6 +1008,12 @@ class Game {
         muted: p.muted,
         sitOut: p.sitOut,
         net: p.lastNet,
+        avatar: p.avatar,
+        color: p.color,
+        rank: ranks.get(p.id) || null,
+        rankDelta: p.rankDelta,
+        rounds: p.stats.rounds,
+        wins: p.stats.wins,
       }));
 
     return {

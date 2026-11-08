@@ -22,9 +22,12 @@
       <h1>Roulette Royale</h1>
       <p class="tagline"><span data-i18n>Speel samen met vrienden.</span> <b data-i18n>Alleen virtuele fiches, geen echt geld.</b></p>
 
-      <label class="field"><span data-i18n>Bijnaam</span>
-        <input id="inp-name" maxlength="16" autocomplete="nickname" placeholder="E.g. LuckyLuke" data-i18n-placeholder="Bijv. LuckyLuke">
-      </label>
+      <div class="name-row">
+        <button id="btn-avatar" class="avatar-btn" type="button" title="Avatar and color" data-i18n-title="Avatar en kleur" data-i18n-aria-label="Avatar en kleur"></button>
+        <label class="field grow"><span data-i18n>Bijnaam</span>
+          <input id="inp-name" maxlength="16" autocomplete="nickname" placeholder="E.g. LuckyLuke" data-i18n-placeholder="Bijv. LuckyLuke">
+        </label>
+      </div>
 
       <button id="btn-create" class="btn gold big" data-i18n>Maak kamer</button>
 
@@ -98,7 +101,8 @@
         <section id="host-panel" class="card" hidden></section>
 
         <section class="card">
-          <h2><span data-i18n>Spelers</span> <span id="player-count" class="count"></span></h2>
+          <h2 class="players-h"><span><span data-i18n>Spelers</span> <span id="player-count" class="count"></span></span>
+            <button id="btn-ranking" class="btn small ghost" type="button" data-i18n>🏆 Ranglijst</button></h2>
           <div id="players" class="players"></div>
         </section>
 

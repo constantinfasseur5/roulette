@@ -119,6 +119,7 @@
       case 'state': return onState(m);
       case 'chat': S.chat.push(m); if (S.chat.length > 80) S.chat.shift(); renderChat(); if (!m.sys && S.me && m.id !== S.me.id) Sound.ping(); return;
       case 'toast': return toast(tr(m.text), m.kind);
+      case 'pstats': return showStats(m);
       case 'spin': return onSpin(m);
       case 'result': return onResult(m);
       case 'error':
@@ -472,6 +473,7 @@
     const r = S.st.room, bets = S.st.me.bets;
     const res = r.phase === 'results' && r.lastResult ? r.lastResult.result : null;
     const defs = Rules.buildBets(r.settings.variant);
+    const meP = S.st.players.find((x) => x.id === S.st.me.id);
     layer.replaceChildren();
     for (const [key, amount] of Object.entries(bets)) {
       const p = S.model.pos[key];
@@ -479,6 +481,7 @@
       let cls = 'chip-on ' + tier(amount);
       if (res != null && defs[key]) cls += defs[key].nums.includes(res) ? ' won' : ' lost';
       const el = h('div', { class: cls, text: short(amount) });
+      if (meP && meP.color) el.style.setProperty('--mine', meP.color);
       el.style.left = (p.x / S.model.C * 100) + '%';
       el.style.top = (p.y / S.model.R * 100) + '%';
       layer.append(el);
@@ -668,12 +671,22 @@
   // ------------------------------------------------------------------ spelerslijst
   function hue(name) { let x = 0; for (const c of name) x = (x * 31 + c.charCodeAt(0)) % 360; return x; }
 
+  /** Rondje met emoji (of beginletter) in de kleur van de speler. */
+  function avatarEl(p, size) {
+    const nm = p.name || '?';
+    const el = h('span', { class: 'avatar' + (p.avatar ? ' emoji' : '') + (size ? ' ' + size : ''), text: p.avatar || nm.slice(0, 1).toUpperCase() });
+    el.style.background = p.color || `hsl(${hue(nm)} 45% 32%)`;
+    return el;
+  }
+
   function renderPlayers() {
     const st = S.st;
     const box = $('#players');
     $('#player-count').textContent = `(${st.players.length}/12)`;
     const iAmHost = st.me.host;
-    box.replaceChildren(...st.players.map((p) => {
+    // Ranglijst: rijkste bovenaan, toeschouwers onderaan (stabiele volgorde = inschrijfvolgorde)
+    const list = [...st.players].sort((a, b) => (a.rank || 99) - (b.rank || 99));
+    box.replaceChildren(...list.map((p) => {
       const tags = [];
       if (p.host) tags.push('👑 Host');
       if (p.spectator) tags.push(t('toeschouwer'));
@@ -681,14 +694,21 @@
       if (p.muted) tags.push(t('gedempt'));
       if (p.sitOut && !p.spectator) tags.push(t('wacht'));
       if (p.chips === 0 && !p.staked && !p.spectator) tags.push(t('blut'));
-      const av = h('span', { class: 'avatar', text: p.name.slice(0, 1).toUpperCase() });
-      av.style.background = `hsl(${hue(p.name)} 45% 32%)`;
-      return h('div', { class: 'player' + (p.id === st.me.id ? ' me' : '') + (p.connected ? '' : ' off') },
-        av,
-        h('div', { class: 'pname' }, h('b', { text: p.name + (p.id === st.me.id ? t(' (jij)') : '') }), h('span', { class: 'tags', text: tags.join(' · ') })),
+      const medal = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : (p.rank ? String(p.rank) : '·');
+      const rk = h('div', { class: 'prank' }, h('span', { text: medal }),
+        p.rankDelta ? h('small', { class: p.rankDelta > 0 ? 'up' : 'down', text: (p.rankDelta > 0 ? '▲' : '▼') + Math.abs(p.rankDelta) }) : null);
+      const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
+      const me = p.id === st.me.id;
+      return h('div', { class: 'player clickable' + (me ? ' me' : '') + (p.connected ? '' : ' off'), tabindex: '0', title: t('Bekijk statistieken'),
+        onclick: () => send({ t: 'pstats', id: p.id }),
+        onkeydown: (e) => { if (e.key === 'Enter') send({ t: 'pstats', id: p.id }); } },
+        rk,
+        avatarEl(p),
+        h('div', { class: 'pname' }, h('b', { text: p.name + (me ? t(' (jij)') : '') }), h('span', { class: 'tags', text: tags.join(' · ') })),
         h('div', { class: 'pbal' }, h('b', { text: fmt(p.chips) }),
           p.staked ? h('small', { text: `+${fmt(p.staked)} in` }) : (p.net != null ? h('small', { class: 'pnet ' + (p.net >= 0 ? 'plus' : 'minus'), text: (p.net >= 0 ? '+' : '') + fmt(p.net) }) : null)),
-        iAmHost && p.id !== st.me.id ? h('button', { class: 'btn small iconbtn', title: t('Speler beheren'), 'aria-label': t('Beheer {name}', { name: p.name }), onclick: () => openPlayerModal(p.id) }, '⚙') : h('span'),
+        me ? h('button', { class: 'btn small iconbtn', title: t('Avatar en kleur'), 'aria-label': t('Avatar en kleur'), onclick: stop(() => openProfilePicker()) }, '✎')
+          : iAmHost ? h('button', { class: 'btn small iconbtn', title: t('Speler beheren'), 'aria-label': t('Beheer {name}', { name: p.name }), onclick: stop(() => openPlayerModal(p.id)) }, '⚙') : h('span'),
       );
     }));
   }
@@ -732,6 +752,12 @@
     hostUI.forceBox.hidden = true;
     hostUI.forceVariant = null;
 
+    hostUI.presetSel = h('select', { 'aria-label': t('Opgeslagen instellingen') });
+    hostUI.presetLoad = btn(t('Laad'), '', loadPreset);
+    hostUI.presetSave = btn(t('Bewaar…'), '', savePresetDialog);
+    hostUI.presetDel = btn('🗑', 'ghost', deletePreset);
+    hostUI.presetDel.title = t('Verwijder');
+
     hostUI.start = btn(t('▶ Start ronde'), 'gold', () => send({ t: 'start' }));
     hostUI.close = btn(t('Sluit inzetten'), '', () => send({ t: 'closeBets' }));
     hostUI.spin = btn(t('🎡 Draai wiel'), '', () => send({ t: 'spin' }));
@@ -751,6 +777,8 @@
         num('betTime', t('Inzettijd (sec)'), 15, 120), num('startChips', t('Startfiches'), 10, 1000000),
         num('minBet', t('Min. inzet per vak'), 1, 100000), num('maxBet', t('Max. inzet per vak'), 1, 1000000),
         num('rebuyBonus', t('Herstart-bonus (0 = uit)'), 0, 1000000), h('label', null, t('Variant'), sel)),
+      h('div', { class: 'host-sub', text: t('Opgeslagen instellingen') }),
+      h('div', { class: 'preset-row' }, hostUI.presetSel, hostUI.presetLoad, hostUI.presetSave, hostUI.presetDel),
       h('div', { class: 'host-sub', text: t('Kamer') }),
       h('div', { class: 'host-grid' },
         btn(t('Kopieer code'), '', () => copy(S.me.code, t('Code gekopieerd'))),
@@ -760,6 +788,7 @@
       h('p', { class: 'tags', text: t('Tip: klik op ⚙ bij een speler om fiches te geven, te dempen, te kicken of de Host-rol over te dragen.') }),
     );
     hostUI.built = true;
+    refreshPresets();
   }
 
   function renderHost() {
@@ -843,6 +872,175 @@
   }
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { const m = $('#modal'); m.hidden = true; m.replaceChildren(); } });
 
+  // ------------------------------------------------------------------ profiel: avatar + kleur
+  const PROFILE_KEY = 'roulette.profile';
+  function getProfile() {
+    const p = store.get('localStorage', PROFILE_KEY) || {};
+    return { avatar: Rules.AVATARS.includes(p.avatar) ? p.avatar : '', color: Rules.COLORS.includes(p.color) ? p.color : '' };
+  }
+  function setProfile(patch) {
+    store.set('localStorage', PROFILE_KEY, Object.assign(getProfile(), patch));
+    if (S.joined) send(Object.assign({ t: 'profile' }, patch));   // in de kamer: server bewaart het voor iedereen
+    renderAvatarBtn();
+  }
+  function renderAvatarBtn() {
+    const b = $('#btn-avatar');
+    if (!b) return;
+    const pr = getProfile();
+    b.replaceChildren(avatarEl({ name: $('#inp-name').value.trim() || '?', avatar: pr.avatar, color: pr.color || '#2f5a47' }, 'lg'));
+  }
+
+  function openProfilePicker() {
+    const modal = $('#modal');
+    const close = () => { modal.hidden = true; modal.replaceChildren(); };
+    const meP = S.st ? S.st.players.find((x) => x.id === S.st.me.id) : null;
+    const stored = getProfile();
+    const name = meP ? meP.name : ($('#inp-name').value.trim() || '?');
+    const cur = { avatar: meP ? meP.avatar : stored.avatar, color: meP ? meP.color : (stored.color || '#2f5a47') };
+    const draw = () => {
+      modal.replaceChildren(h('div', { class: 'modal-card', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('Avatar en kleur') },
+        h('h3', { text: t('Avatar en kleur') }),
+        h('div', { class: 'pick-preview' }, avatarEl({ name, avatar: cur.avatar, color: cur.color }, 'xl')),
+        h('div', { class: 'pick-grid' }, [''].concat(Rules.AVATARS).map((a) =>
+          h('button', { type: 'button', class: 'pick' + (cur.avatar === a ? ' sel' : ''), title: a ? null : t('Beginletter'),
+            onclick: () => { cur.avatar = a; setProfile({ avatar: a }); draw(); } }, a || name.slice(0, 1).toUpperCase()))),
+        h('div', { class: 'pick-colors' }, Rules.COLORS.map((c) => {
+          const b = h('button', { type: 'button', class: 'swatch' + (cur.color === c ? ' sel' : ''), 'aria-label': c,
+            onclick: () => { cur.color = c; setProfile({ color: c }); draw(); } });
+          b.style.background = c;
+          return b;
+        })),
+        h('button', { class: 'btn small gold', onclick: close }, t('Klaar'))));
+    };
+    draw();
+    modal.hidden = false;
+    modal.onclick = (e) => { if (e.target === modal) close(); };
+  }
+
+  // ------------------------------------------------------------------ statistieken + ranglijst
+  const signed = (n) => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n));
+  const kindLabel = (k) => ({
+    straight: t('Enkel nummer'), split: 'Split', street: 'Street', corner: 'Corner', sixline: 'Six line', column: t('Kolom'), dozen: t('Dozijn'),
+    red: t('Rood'), black: t('Zwart'), even: t('Even'), odd: t('Oneven'), low: '1-18', high: '19-36',
+  }[k] || k);
+
+  function showStats(m) {
+    const modal = $('#modal');
+    const close = () => { modal.hidden = true; modal.replaceChildren(); };
+    const meP = S.st && S.st.players.find((x) => x.id === m.id);
+    const mine = S.st && m.id === S.st.me.id;
+    const row = (k, v, cls) => h('div', { class: 'stat-row' }, h('span', { text: k }), h('b', { class: cls || null, text: v }));
+    const body = m.rounds ? [
+      row(t('Rondes gespeeld'), String(m.rounds)),
+      row(t('Gewonnen'), `${m.wins} (${Math.round(m.wins / m.rounds * 100)}%)`),
+      row(t('Grootste winst'), m.bestWin ? '+' + fmt(m.bestWin) : '–', m.bestWin ? 'plus' : null),
+      row(t('Grootste verlies'), m.worstLoss ? '−' + fmt(m.worstLoss) : '–', m.worstLoss ? 'minus' : null),
+      row(t('Totaal ingezet'), fmt(m.staked)),
+      row(t('Resultaat totaal'), signed(m.net), m.net > 0 ? 'plus' : m.net < 0 ? 'minus' : null),
+      row(t('Favoriete inzetten'), m.fav.map((f) => `${kindLabel(f.kind)} (${f.count}×)`).join(', ') || '–'),
+    ] : [h('p', { class: 'tags', text: t('Nog geen rondes gespeeld.') })];
+    modal.replaceChildren(h('div', { class: 'modal-card', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('Statistieken van {name}', { name: m.name }) },
+      h('div', { class: 'stat-head' }, avatarEl(m, 'xl'),
+        h('div', null, h('h3', { text: m.name }),
+          h('div', { class: 'sub', text: (meP && meP.rank ? `#${meP.rank} · ` : '') + t('{n} fiches', { n: fmt(m.chips) }) }))),
+      h('div', { class: 'stat-list' }, body),
+      h('div', { class: 'modal-grid' },
+        mine ? h('button', { class: 'btn small', onclick: () => openProfilePicker() }, t('Avatar en kleur')) : h('span'),
+        h('button', { class: 'btn small gold', onclick: close }, t('Sluiten')))));
+    modal.hidden = false;
+    modal.onclick = (e) => { if (e.target === modal) close(); };
+  }
+
+  function openRanking() {
+    if (!S.st) return;
+    const modal = $('#modal');
+    const close = () => { modal.hidden = true; modal.replaceChildren(); };
+    const start = S.st.room.settings.startChips;
+    const list = S.st.players.filter((p) => p.rank).sort((a, b) => a.rank - b.rank);
+    const podium = [list[1], list[0], list[2]].map((p, i) => (p ? h('div', { class: 'pod p' + [2, 1, 3][i] },
+      h('span', { class: 'pod-medal', text: ['🥈', '🥇', '🥉'][i] }), avatarEl(p, 'lg'),
+      h('b', { text: p.name }), h('small', { text: fmt(p.chips) })) : h('div', { class: 'pod gap' })));
+    const rows = list.map((p) => h('div', { class: 'rank-row' + (p.id === S.st.me.id ? ' me' : '') },
+      h('span', { class: 'rk', text: String(p.rank) }), avatarEl(p), h('b', { class: 'rn', text: p.name }),
+      h('span', { class: 'rc', text: fmt(p.chips) }),
+      h('span', { class: 'rd ' + (p.chips - start >= 0 ? 'plus' : 'minus'), text: signed(p.chips - start) }),
+      h('span', { class: 'rw', text: p.rounds ? `${Math.round(p.wins / p.rounds * 100)}%` : '–' })));
+    modal.replaceChildren(h('div', { class: 'modal-card wide', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('Ranglijst') },
+      h('h3', { text: '🏆 ' + t('Ranglijst') }),
+      list.length ? [
+        h('div', { class: 'podium' }, podium),
+        h('div', { class: 'rank-head' }, h('span'), h('span'), h('span', { text: t('Speler') }), h('span', { text: t('Fiches') }), h('span', { text: t('t.o.v. start') }), h('span', { text: t('Winst%') })),
+        h('div', { class: 'rank-list' }, rows),
+      ] : h('p', { class: 'tags', text: t('Nog geen spelers.') }),
+      h('button', { class: 'btn small gold', onclick: close }, t('Sluiten'))));
+    modal.hidden = false;
+    modal.onclick = (e) => { if (e.target === modal) close(); };
+  }
+  $('#btn-ranking').addEventListener('click', openRanking);
+
+  // ------------------------------------------------------------------ opgeslagen kamerinstellingen (alleen in deze browser)
+  const PRESET_KEY = 'roulette.presets';
+  const PRESET_KEYS = ['betTime', 'startChips', 'minBet', 'maxBet', 'rebuyBonus', 'variant', 'auto', 'hostPlays', 'chat'];
+  const getPresets = () => {
+    const v = store.get('localStorage', PRESET_KEY);
+    return Array.isArray(v) ? v.filter((x) => x && typeof x.name === 'string' && x.s && typeof x.s === 'object').slice(0, 8) : [];
+  };
+  function refreshPresets(pick) {
+    const list = getPresets();
+    hostUI.presetSel.replaceChildren(...(list.length
+      ? list.map((x) => h('option', { value: x.name, text: x.name }))
+      : [h('option', { value: '', text: t('Geen opgeslagen instellingen') })]));
+    if (pick) hostUI.presetSel.value = pick;
+    hostUI.presetLoad.disabled = hostUI.presetDel.disabled = !list.length;
+  }
+  function loadPreset() {
+    const x = getPresets().find((p) => p.name === hostUI.presetSel.value);
+    if (!x || !S.st) return;
+    const cur = S.st.room.settings;
+    const between = S.st.room.phase === 'lobby' || S.st.room.phase === 'results';
+    const s = {};
+    for (const k of PRESET_KEYS) if (k in x.s) s[k] = x.s[k];
+    let skipped = false;
+    if (!between) for (const k of ['variant', 'minBet', 'maxBet']) if (k in s && s[k] !== cur[k]) { delete s[k]; skipped = true; }
+    send({ t: 'settings', settings: s });
+    toast(skipped ? t('Geladen: {name} (variant en min/max inzet kunnen alleen tussen rondes)', { name: x.name }) : t('Geladen: {name}', { name: x.name }), 'info');
+  }
+  function deletePreset() {
+    const name = hostUI.presetSel.value;
+    if (!name || !confirm(t('"{name}" verwijderen?', { name }))) return;
+    store.set('localStorage', PRESET_KEY, getPresets().filter((p) => p.name !== name));
+    refreshPresets();
+  }
+  function savePresetDialog() {
+    if (!S.st) return;
+    const modal = $('#modal');
+    const close = () => { modal.hidden = true; modal.replaceChildren(); };
+    const cur = S.st.room.settings;
+    const snap = {};
+    for (const k of PRESET_KEYS) snap[k] = cur[k];
+    const inp = h('input', { maxlength: '20', placeholder: t('Naam, bv. Snel spel'), autocomplete: 'off' });
+    const save = () => {
+      const name = inp.value.trim().slice(0, 20);
+      if (!name) return toast(t('Geef de instellingen een naam.'), 'error');
+      const list = getPresets().filter((p) => p.name.toLowerCase() !== name.toLowerCase());
+      if (list.length >= 8) return toast(t('Maximaal 8 opgeslagen instellingen. Verwijder er eerst één.'), 'error');
+      list.push({ name, s: snap });
+      store.set('localStorage', PRESET_KEY, list);
+      refreshPresets(name);
+      toast(t('Opgeslagen: {name}', { name }), 'info');
+      close();
+    };
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+    modal.replaceChildren(h('div', { class: 'modal-card', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('Instellingen opslaan') },
+      h('h3', { text: t('Instellingen opslaan') }),
+      h('div', { class: 'sub', text: t('Je huidige kamerinstellingen worden in deze browser bewaard.') }),
+      h('div', { class: 'set-row' }, inp, h('button', { class: 'btn small gold', onclick: save }, t('Bewaar'))),
+      h('button', { class: 'btn small ghost', onclick: close }, t('Sluiten'))));
+    modal.hidden = false;
+    modal.onclick = (e) => { if (e.target === modal) close(); };
+    inp.focus();
+  }
+
   // ------------------------------------------------------------------ kopiëren
   const inviteLink = () => `${location.origin}${location.pathname}?room=${S.me.code}`;
   function copy(text, okMsg) {
@@ -871,15 +1069,17 @@
   $('#btn-create').addEventListener('click', () => {
     Sound.init(); S.noReconnect = false; showStartError('');
     if (!getName()) return showStartError(t('Kies eerst een bijnaam.'));
-    request({ t: 'create', name: getName() });
+    request(Object.assign({ t: 'create', name: getName() }, getProfile()));
   });
   $('#btn-join').addEventListener('click', () => {
     Sound.init(); S.noReconnect = false; showStartError('');
     const code = $('#inp-code').value.trim().toUpperCase();
     if (!getName()) return showStartError(t('Kies eerst een bijnaam.'));
     if (code.length !== 5) return showStartError(t('Een kamercode heeft 5 tekens.'));
-    request({ t: 'join', code, name: getName() });
+    request(Object.assign({ t: 'join', code, name: getName() }, getProfile()));
   });
+  $('#inp-name').addEventListener('input', renderAvatarBtn);
+  $('#btn-avatar').addEventListener('click', openProfilePicker);
   $('#inp-code').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
   for (const id of ['#inp-name', '#inp-code']) {
     $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') (($('#inp-code').value ? $('#btn-join') : $('#btn-create'))).click(); });
@@ -942,6 +1142,7 @@
     I18N.applyStatic(document);
     showStartError('');
     renderRejoin();
+    renderAvatarBtn();
     if (S.joined && S.st) {
       S.modelKey = '';          // tafel opnieuw tekenen met vertaalde labels
       hostUI.built = false;     // host-paneel opnieuw opbouwen
@@ -964,6 +1165,7 @@
     if (room) $('#inp-code').value = room;
     const name = store.get('localStorage', 'roulette.name');
     if (typeof name === 'string') $('#inp-name').value = name;
+    renderAvatarBtn();
     if (store.get('sessionStorage', 'roulette.session')) {
       // we proberen terug te keren; het startscherm blijft zichtbaar tot de server antwoordt
     }

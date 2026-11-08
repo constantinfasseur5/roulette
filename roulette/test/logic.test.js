@@ -485,6 +485,77 @@ async function run() {
   eq(room().forceNext, null, 'null = weer willekeurig');
   send(H, { t: 'settings', settings: { variant: 'european' } });
 
+  group('Pakket 1: avatars, kleuren, stats, ranglijst');
+  await sleep(2000); // rate-limit-budget aanvullen
+  const COLORS = Rules.COLORS, AVATARS = Rules.AVATARS;
+  const P1 = (id) => room().players.get(id);
+  ok(AVATARS.length === 24 && COLORS.length === 8 && new Set(AVATARS).size === 24 && new Set(COLORS).size === 8, 'lijsten: 24 unieke avatars, 8 unieke kleuren');
+  const defCols = [H, A, B, C].map((c) => P1(c.id).color);
+  ok(defCols.every((c) => COLORS.includes(c)) && new Set(defCols).size === 4, 'spelers zonder keuze krijgen elk een eigen standaardkleur');
+  ok([H, A, B, C].every((c) => P1(c.id).avatar === ''), 'standaard geen avatar (beginletter)');
+
+  const Pro = new Fake('Pro');
+  send(Pro, { t: 'join', code: H.code, name: 'Pro', avatar: AVATARS[3], color: COLORS[6] });
+  eq([P1(Pro.id).avatar, P1(Pro.id).color], [AVATARS[3], COLORS[6]], 'join met avatar + kleur wordt overgenomen');
+  const Bad = new Fake('Bad');
+  send(Bad, { t: 'join', code: H.code, name: 'Bad', avatar: '<script>alert(1)</script>', color: 'red; background:url(x)' });
+  eq(P1(Bad.id).avatar, '', 'ongeldige avatar wordt genegeerd (geen vrije tekst)');
+  ok(COLORS.includes(P1(Bad.id).color), 'ongeldige kleur wordt vervangen door een standaardkleur');
+  send(Bad, { t: 'leave' });
+
+  send(A, { t: 'profile', avatar: AVATARS[20], color: COLORS[5] });
+  eq([P1(A.id).avatar, P1(A.id).color], [AVATARS[20], COLORS[5]], 'profile-bericht wijzigt avatar + kleur');
+  await flush();
+  const seenA = B.state.players.find((p) => p.id === A.id);
+  eq([seenA.avatar, seenA.color], [AVATARS[20], COLORS[5]], 'andere spelers zien de nieuwe avatar + kleur');
+  send(A, { t: 'profile', color: 'zwart' });
+  eq(P1(A.id).color, COLORS[5], 'ongeldige kleur laat de oude staan');
+  send(A, { t: 'profile', avatar: 'x'.repeat(50) });
+  eq(P1(A.id).avatar, '', 'ongeldige avatar wist de avatar (terug naar beginletter)');
+  send(A, { t: 'profile', avatar: AVATARS[1] });
+
+  // Ronde met bekende uitslag: stats + rangen
+  if (room().phase !== 'betting') send(H, { t: 'start' });
+  eq(room().phase, 'betting', 'ronde loopt');
+  const a0 = JSON.parse(JSON.stringify(P1(A.id).stats));
+  eq([a0.rounds >= 0, P1(Pro.id).stats.rounds], [true, 0], 'nieuwe speler heeft lege stats');
+  results.push(7); // rood
+  send(A, { t: 'bet', key: 'straight:7', amount: 10 });
+  send(A, { t: 'bet', key: 'black', amount: 5 });
+  send(Pro, { t: 'bet', key: 'red', amount: 5 });
+  send(Pro, { t: 'bet', key: 'column:1', amount: 20 }); // 7 zit in kolom 1
+  send(H, { t: 'spin' });
+  await sleep(150);
+  const sa = P1(A.id).stats;
+  eq([sa.rounds, sa.wins, sa.staked, sa.net], [a0.rounds + 1, a0.wins + 1, a0.staked + 15, a0.net + 345], 'stats van Ali: ronde, winst, ingezet, resultaat');
+  ok(sa.bestWin >= 345, 'stats: grootste winst bijgewerkt');
+  eq([sa.kinds.straight - (a0.kinds.straight || 0), sa.kinds.black - (a0.kinds.black || 0)], [1, 1], 'stats: soort inzetten geteld (1× per ronde)');
+  const sp = P1(Pro.id).stats;
+  eq([sp.rounds, sp.wins, sp.staked, sp.net, sp.bestWin, sp.worstLoss], [1, 1, 25, 5 * 2 - 5 + 20 * 3 - 20, 45, 0], 'stats van Pro: rood 1:1 + kolom 2:1 gewonnen');
+
+  B.clear();
+  send(B, { t: 'pstats', id: Pro.id });
+  const ps = B.last('pstats');
+  ok(ps && ps.name === 'Pro' && ps.rounds === 1 && ps.wins === 1 && ps.net === 45, 'pstats: iedereen kan stats van een speler opvragen');
+  eq(ps.fav.map((f) => f.kind).sort(), ['column', 'red'], 'pstats: favoriete soorten');
+  ok(!('token' in ps) && !('bets' in ps), 'pstats lekt geen token of inzetten');
+  B.clear();
+  send(B, { t: 'pstats', id: 'bestaatniet' });
+  ok(!B.last('pstats') && !B.lastErr(), 'pstats voor onbekende speler: stil genegeerd');
+
+  const ranked = B.state.players.filter((p) => p.rank);
+  eq(ranked.map((p) => p.rank).sort((x, y) => x - y), ranked.map((_, i) => i + 1), 'rangen zijn 1..n zonder dubbelen');
+  const top = ranked.find((p) => p.rank === 1);
+  ok(ranked.every((p) => p.chips <= top.chips), 'rang 1 heeft de meeste fiches');
+  eq(ranked.reduce((n, p) => n + (p.rankDelta || 0), 0), 0, 'plaatsverandering telt op tot 0 (alleen wisselen van plek)');
+  ok(B.state.players.filter((p) => p.spectator).every((p) => p.rank === null), 'toeschouwers staan niet in de ranglijst');
+  ok(B.state.players.every((p) => typeof p.rounds === 'number' && typeof p.wins === 'number'), 'state bevat rondes/winst voor de ranglijst');
+
+  send(H, { t: 'resetPlayer', id: Pro.id });
+  eq([P1(Pro.id).stats.rounds, P1(Pro.id).stats.net, P1(Pro.id).rankDelta], [0, 0, null], 'Host reset speler: ook de stats beginnen opnieuw');
+  send(Pro, { t: 'leave' });
+  await flush();
+
   group('Terugkeren (reconnect)');
   const Bn = B.token;
   const chipsB = room().players.get(B.id).chips;

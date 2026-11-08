@@ -24,6 +24,9 @@
   };
 
   const CHIPS = [1, 5, 10, 25, 100, 500];
+  // Keuzes voor het spelersprofiel (de server accepteert alleen waarden uit deze lijsten)
+  const AVATARS = ['😀', '😎', '🤠', '🦊', '🐼', '🐯', '🦁', '🐸', '🐙', '🦄', '🐲', '👻', '🤖', '👽', '🎩', '👑', '💎', '🍀', '🔥', '⭐', '🎲', '🃏', '🍒', '🚀'];
+  const COLORS = ['#c0392b', '#e67e22', '#d4ac0d', '#27ae60', '#16a085', '#2980b9', '#8e44ad', '#d63a8e'];
 
   const label = (n) => (n === 37 ? '00' : String(n));
   const colorOf = (n) => (n === 0 || n === 37 ? 'green' : RED.has(n) ? 'red' : 'black');
@@ -94,5 +97,5 @@
     return def && def.nums.includes(result) ? amount * (def.ratio + 1) : 0;
   }
 
-  return { RED, VARIANTS, CHIPS, label, colorOf, buildBets, payout };
+  return { RED, VARIANTS, CHIPS, AVATARS, COLORS, label, colorOf, buildBets, payout };
 });
