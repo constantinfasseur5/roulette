@@ -559,14 +559,25 @@ async function run() {
   group('Pakket 2: meekijkers');
   await sleep(2000); // rate-limit-budget aanvullen
   const nPl = room().players.size;
+  const KEY = H.state.room.watchKey;
+  ok(typeof KEY === 'string' && KEY.length >= 12 && !KEY.includes(H.code), 'de Host kent een geheime kijk-sleutel (los van de kamercode)');
+  ok(!A.state.room.watchKey && !B.state.room.watchKey, 'gewone spelers krijgen de kijk-sleutel niet te zien');
+  const noKey = new Fake('NoKey');
+  send(noKey, { t: 'join', code: H.code, watch: true });
+  eq(noKey.lastErr().code, 'watchkey', 'meekijken met alleen de kamercode wordt geweigerd');
+  send(noKey, { t: 'join', watchKey: 'verkeerdeSleutel' });
+  eq(noKey.lastErr().code, 'nowatchkey', 'verkeerde kijk-sleutel wordt geweigerd');
+  send(noKey, { t: 'join', watchKey: H.code });
+  eq(noKey.lastErr().code, 'nowatchkey', 'de kamercode werkt niet als kijk-sleutel');
   const W1 = new Fake('W1');
-  send(W1, { t: 'join', code: H.code, watch: true });
+  send(W1, { t: 'join', watchKey: KEY });
   const wel = W1.last('welcome');
-  ok(wel && wel.watcher === true && /^Kijker \d+$/.test(wel.name), 'join met watch:true: welkom als kijker, zonder bijnaam');
+  ok(wel && wel.watcher === true && /^Kijker \d+$/.test(wel.name), 'join met kijk-sleutel: welkom als kijker, zonder bijnaam');
+  ok(wel.code === null && wel.key === KEY, 'welkom bevat geen kamercode');
   ok(!room().players.has(W1.id) && room().watchers.has(W1.id) && room().players.size === nPl, 'kijker is geen speler en neemt geen plek in');
   await flush();
   ok(W1.state && W1.state.me.watcher === true && W1.state.players.length === nPl, 'kijker krijgt state; spelerslijst zonder kijkers');
-  ok(!W1.state.me.forceNext && !W1.state.me.host, 'kijker krijgt geen Host-gegevens');
+  ok(!W1.state.me.forceNext && !W1.state.me.host && W1.state.room.code === null && !W1.state.room.watchKey, 'kijker krijgt geen Host-gegevens en geen kamercode in de state');
   eq(H.state.room.watchers, 1, 'state toont het aantal kijkers (1)');
 
   const chatBefore = room().chatLog.length, chipsA = P1(A.id).chips;
@@ -582,16 +593,21 @@ async function run() {
   ok(W1.last('pstats') && Array.isArray(W1.last('pstats').ach), 'statistieken bekijken mag wel (met prestaties)');
   W1.clear(); send(A, { t: 'chat', text: 'hallo kijker' });
   ok(W1.msgs.some((m) => m.t === 'chat' && m.text === 'hallo kijker'), 'kijker ontvangt de chat');
+  await flush();
+  ok(!W1.msgs.some((m) => JSON.stringify(m).includes(H.code)), 'niets wat een kijker ontvangt bevat de kamercode');
+  send(W1, { t: 'join', code: H.code, name: 'Sluipert' });
+  ok(/al in een kamer/.test(W1.lastErr().msg) && !room().players.has(W1.id), 'kijker kan niet alsnog als speler "joinen"');
 
   send(H, { t: 'settings', settings: { locked: true } });
   const W2 = new Fake('W2');
-  send(W2, { t: 'join', code: H.code, watch: true });
-  eq(W2.lastErr().code, 'locked', 'vergrendelde kamer: ook niet meekijken');
+  send(W2, { t: 'join', watchKey: KEY });
+  ok(W2.last('welcome') && W2.last('welcome').watcher, 'vergrendelde kamer: kijken mag nog wel (alleen nieuwe spelers worden tegengehouden)');
+  const lockedJoin = new Fake('Lj'); send(lockedJoin, { t: 'join', code: H.code, name: 'Laat' });
+  eq(lockedJoin.lastErr().code, 'locked', 'vergrendelde kamer houdt nieuwe spelers nog steeds tegen');
   send(H, { t: 'settings', settings: { locked: false } });
   const maxW = game.o.maxWatchers; game.o.maxWatchers = 2;
-  send(W2, { t: 'join', code: H.code, watch: true });
   const W3 = new Fake('W3');
-  send(W3, { t: 'join', code: H.code, watch: true });
+  send(W3, { t: 'join', watchKey: KEY });
   ok(W2.last('welcome') && W3.lastErr() && W3.lastErr().code === 'full', 'maximum aantal kijkers wordt bewaakt');
   game.o.maxWatchers = maxW;
 
@@ -602,15 +618,18 @@ async function run() {
 
   const tok2 = W2.token; game.onClose(W2); await flush();
   const W2b = new Fake('W2b');
-  send(W2b, { t: 'resume', code: H.code, token: tok2 });
+  send(W2b, { t: 'resume', key: KEY, token: tok2 });
   ok(W2b.last('welcome') && W2b.last('welcome').watcher === true && W2b.id === W2.id, 'kijker kan terugkeren met zijn token (zelfde kijker)');
   await flush();
   eq(H.state.room.watchers, 2, 'na terugkeren: nog steeds 2 kijkers (geen dubbele)');
   send(W2b, { t: 'leave' });
   ok(W2b.last('left') && !room().watchers.has(W2.id), 'kijker kan de kamer verlaten');
 
+  const W2c = new Fake('W2c');
+  send(W2c, { t: 'resume', code: H.code, token: tok2 });
+  ok(W2c.last('resumeFailed'), 'een kijker-token werkt niet via de kamercode');
   const W5 = new Fake('W5');
-  send(W5, { t: 'join', code: H.code, watch: true });
+  send(W5, { t: 'join', watchKey: KEY });
   game.onClose(W5);
   await sleep(800);
   ok(!room().watchers.has(W5.id), 'kijker die niet terugkomt wordt na de wachttijd opgeruimd');
@@ -618,11 +637,28 @@ async function run() {
   send(H, { t: 'settings', settings: { watch: false } });
   ok(W1.last('kicked') && room().watchers.size === 0, 'Host zet meekijken uit: kijkers worden weggestuurd');
   const W4 = new Fake('W4');
-  send(W4, { t: 'join', code: H.code, watch: true });
+  send(W4, { t: 'join', watchKey: KEY });
   eq(W4.lastErr().code, 'nowatch', 'nieuwe kijkers worden geweigerd zolang het uit staat');
   send(H, { t: 'settings', settings: { watch: true } });
   await flush();
   eq(room().settings.watch, true, 'meekijken weer aan');
+  eq(H.state.room.watchKey, KEY, 'aan/uit zetten verandert de kijk-sleutel niet');
+
+  const W6 = new Fake('W6');
+  send(W6, { t: 'join', watchKey: KEY });
+  ok(W6.last('welcome'), 'nog een kijker');
+  send(A, { t: 'newWatchKey' });
+  eq(A.lastErr().code, 'nothost', 'alleen de Host kan een nieuwe kijk-link maken');
+  send(H, { t: 'newWatchKey' });
+  await flush();
+  const KEY2 = H.state.room.watchKey;
+  ok(KEY2 && KEY2 !== KEY, 'Host krijgt een nieuwe kijk-sleutel');
+  ok(W6.last('kicked') && room().watchers.size === 0, 'bestaande kijkers worden weggestuurd');
+  const W7 = new Fake('W7'); send(W7, { t: 'join', watchKey: KEY });
+  eq(W7.lastErr().code, 'nowatchkey', 'de oude kijk-link werkt niet meer');
+  send(W7, { t: 'join', watchKey: KEY2 });
+  ok(W7.last('welcome') && W7.last('welcome').watcher, 'de nieuwe kijk-link werkt');
+  send(W7, { t: 'leave' });
 
   group('Pakket 2: prestaties');
   await sleep(1000);
@@ -632,7 +668,7 @@ async function run() {
   const ap = () => AR().players.get(AP.id), aq = () => AR().players.get(AQ.id), ac = () => AR().players.get(AC.id);
   send(AP, { t: 'join', code: AH.code, name: 'Pia' });
   send(AQ, { t: 'join', code: AH.code, name: 'Quinn' });
-  send(WA, { t: 'join', code: AH.code, watch: true });
+  send(WA, { t: 'join', watchKey: AH.state.room.watchKey });
   send(AH, { t: 'settings', settings: { maxBet: 5000, auto: false } });
   const rnd = async (num, bets) => {
     send(AH, { t: 'start' });

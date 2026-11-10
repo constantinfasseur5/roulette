@@ -379,8 +379,6 @@ body.in-game .changelog-btn { position: relative; left: auto; bottom: auto; marg
 /* ---------- pakket 2: meekijkers + prestaties ---------- */
 .watch-note { margin: -10px 0 14px; text-align: center; color: var(--gold-hi); font-size: 0.88rem; line-height: 1.4; }
 .watch-note:empty { display: none; }
-#btn-unwatch { width: 100%; margin-top: 10px; }
-#btn-unwatch[hidden] { display: none; }
 body.watch-start .name-row, body.watch-start #btn-create, body.watch-start .or { display: none; }
 .watch-banner { display: none; margin: 0 auto 8px; max-width: 1200px; padding: 8px 14px; text-align: center; font-size: 0.9rem; font-weight: 600; color: var(--gold-hi); background: rgba(214, 178, 94, 0.12); border: 1px solid rgba(214, 178, 94, 0.45); border-radius: 12px; }
 .watch-banner:not([hidden]) { display: block; }
@@ -396,3 +394,11 @@ body.watching .chat-form, body.watching #controls, body.watching .balance { disp
 .ach-i { font-size: 1.35rem; line-height: 1.1; }
 .ach-t { font-size: 0.66rem; line-height: 1.15; hyphens: auto; overflow-wrap: anywhere; }
 @media (max-width: 420px) { .ach-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------- kijk-link zonder kamercode + streamer-modus ---------- */
+body.watch-start .join-row .field { display: none; }
+body.watch-start .join-row .btn { flex: 1 1 100%; }
+body.watching #btn-code, body.watching #btn-link, body.watching #btn-stream { display: none; }
+.stream-btn { min-width: 38px; padding-left: 8px; padding-right: 8px; }
+.btn.stream-btn.on { background: var(--gold); border-color: var(--gold); color: #2b1a02; }
+.start-stream { position: absolute; top: 14px; left: 14px; z-index: 2; }

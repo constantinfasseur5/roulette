@@ -82,6 +82,7 @@ function genCode() {
   return c;
 }
 
+const cleanKey = (v) => String(v == null ? '' : v).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 24);
 const isInt = (v) => typeof v === 'number' && Number.isInteger(v);
 const sumBets = (m) => { let s = 0; for (const a of m.values()) s += a; return s; };
 
@@ -89,6 +90,7 @@ class Game {
   constructor(opts = {}) {
     this.o = Object.assign({}, DEFAULTS, opts);
     this.rooms = new Map();
+    this.watchKeys = new Map(); // kijk-sleutel -> kamer
     this.joinLog = new Map(); // ip -> { n, reset }
     this.sweeper = setInterval(() => this.sweep(), 30000);
     this.sweeper.unref();
@@ -201,7 +203,7 @@ class Game {
     }
 
     // ---- alleen Host ----
-    const hostCmds = ['start', 'closeBets', 'spin', 'forceNext', 'extend', 'settings', 'pause', 'kick', 'ban', 'chips', 'resetPlayer', 'resetAll', 'mute', 'transfer', 'closeRoom'];
+    const hostCmds = ['start', 'closeBets', 'spin', 'forceNext', 'extend', 'settings', 'pause', 'kick', 'ban', 'chips', 'resetPlayer', 'resetAll', 'mute', 'transfer', 'closeRoom', 'newWatchKey'];
     if (!hostCmds.includes(msg.t)) return this.err(conn, 'Onbekende actie.');
     if (room.hostId !== player.id) return this.err(conn, 'Alleen de Host mag dit.', 'nothost');
 
@@ -221,6 +223,7 @@ class Game {
       case 'mute': return this.cmdMute(conn, room, msg);
       case 'transfer': return this.cmdTransfer(conn, room, player, msg);
       case 'closeRoom': return this.cmdCloseRoom(conn, room, player);
+      case 'newWatchKey': return this.cmdNewWatchKey(conn, room);
     }
   }
 
@@ -292,6 +295,9 @@ class Game {
       flushTimer: null,
       hostTimer: null,
     };
+    // geheime sleutel voor de kijk-link: los van de kamercode, zodat kijkers de code nooit te zien krijgen
+    do { room.watchKey = crypto.randomBytes(9).toString('base64url'); } while (this.watchKeys.has(room.watchKey));
+    this.watchKeys.set(room.watchKey, room);
     this.rooms.set(code, room);
     const p = this.newPlayer(room, name, msg);
     room.hostId = p.id;
@@ -301,6 +307,9 @@ class Game {
   join(conn, msg) {
     if (conn.ctx) return this.err(conn, 'Je zit al in een kamer.');
     if (!this.joinAllowed(conn)) return this.err(conn, 'Te veel pogingen. Wacht even.');
+    // Kijken kan alleen met de kijk-sleutel (niet met de kamercode)
+    if (msg.watchKey != null) return this.joinByWatchKey(conn, msg);
+    if (msg.watch === true) return this.err(conn, 'Meekijken kan alleen met een kijk-link van de Host.', 'watchkey');
 
     const code = String(msg.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
     const room = this.rooms.get(code);
@@ -314,10 +323,7 @@ class Game {
     if (token) {
       const existing = [...room.players.values()].find((p) => p.token === token);
       if (existing) return this.attach(room, existing, conn, true);
-      const w = [...room.watchers.values()].find((x) => x.token === token);
-      if (w) return this.attachWatcher(room, w, conn, true);
     }
-    if (msg.watch === true) return this.joinWatcher(conn, room, token);
 
     const name = cleanName(msg.name);
     if (!name) return this.err(conn, 'Kies een bijnaam (1-16 tekens).', 'name');
@@ -339,10 +345,16 @@ class Game {
 
   resume(conn, msg) {
     if (conn.ctx) return;
-    const code = String(msg.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
     const token = typeof msg.token === 'string' ? msg.token.slice(0, 64) : '';
-    const room = this.rooms.get(code);
-    const p = room && token ? ([...room.players.values()].find((x) => x.token === token) || [...room.watchers.values()].find((x) => x.token === token)) : null;
+    let room, p = null;
+    if (msg.key != null) {            // kijker: terugkeren via de kijk-sleutel
+      room = this.watchKeys.get(cleanKey(msg.key));
+      p = room && token ? [...room.watchers.values()].find((x) => x.token === token) : null;
+    } else {                          // speler: terugkeren via de kamercode
+      const code = String(msg.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+      room = this.rooms.get(code);
+      p = room && token ? [...room.players.values()].find((x) => x.token === token) : null;
+    }
     if (!p) return this.send(conn, { t: 'resumeFailed' });
     if (p.watcher) return this.attachWatcher(room, p, conn, true);
     this.attach(room, p, conn, true);
@@ -373,10 +385,23 @@ class Game {
   }
 
   // ---- meekijkers ----
+  joinByWatchKey(conn, msg) {
+    const room = this.watchKeys.get(cleanKey(msg.watchKey));
+    if (!room) {
+      conn.joinFails = (conn.joinFails || 0) + 1;
+      if (conn.joinFails > 12) return conn.close(1008, 'te veel pogingen');
+      return this.err(conn, 'Deze kijk-link werkt niet (meer). Vraag de Host om een nieuwe.', 'nowatchkey');
+    }
+    const token = typeof msg.token === 'string' ? msg.token.slice(0, 64) : '';
+    const w = token ? [...room.watchers.values()].find((x) => x.token === token) : null;
+    if (w) return this.attachWatcher(room, w, conn, true);
+    this.joinWatcher(conn, room, token);
+  }
+
   joinWatcher(conn, room, token) {
     if (token && room.bannedTokens.has(token)) return this.err(conn, 'Je bent verbannen uit deze kamer.', 'banned');
     if (!room.settings.watch) return this.err(conn, 'Meekijken staat uit in deze kamer.', 'nowatch');
-    if (room.settings.locked) return this.err(conn, 'De kamer is vergrendeld door de Host.', 'locked');
+    // (vergrendeld houdt alleen nieuwe spelers tegen, kijkers mogen wel)
     if (room.watchers.size >= this.o.maxWatchers) return this.err(conn, `Er kijken al genoeg mensen mee (max. ${this.o.maxWatchers}).`, 'full');
     room.watcherSeq = (room.watcherSeq || 0) + 1;
     const w = {
@@ -403,7 +428,7 @@ class Game {
     w.removeTimer = null;
     conn.ctx = { room, player: w };
     this.send(conn, {
-      t: 'welcome', id: w.id, token: w.token, code: room.code, name: w.name, watcher: true,
+      t: 'welcome', id: w.id, token: w.token, code: null, key: room.watchKey, name: w.name, watcher: true,
       chatLog: room.chatLog.slice(-40), resumed: !!resumed,
     });
     this.touch(room, true);
@@ -418,10 +443,10 @@ class Game {
     this.touch(room);
   }
 
-  /** Host zet meekijken uit: alle kijkers gaan naar het startscherm. */
-  dropWatchers(room) {
+  /** Alle kijkers gaan naar het startscherm (meekijken uitgezet, of nieuwe kijk-link). */
+  dropWatchers(room, msg) {
     for (const w of [...room.watchers.values()]) {
-      if (w.conn) this.send(w.conn, { t: 'kicked', ban: false, msg: 'De Host heeft meekijken uitgezet.' });
+      if (w.conn) this.send(w.conn, { t: 'kicked', ban: false, msg: msg || 'De Host heeft meekijken uitgezet.' });
       this.removeWatcher(room, w);
     }
   }
@@ -516,6 +541,7 @@ class Game {
       if (w.conn) { w.conn.ctx = null; }
     }
     this.rooms.delete(room.code);
+    if (this.watchKeys.get(room.watchKey) === room) this.watchKeys.delete(room.watchKey);
   }
 
   sweep() {
@@ -1053,6 +1079,15 @@ class Game {
     this.transferHost(room, t.id, '');
   }
 
+  /** Host maakt een nieuwe kijk-link: de oude werkt niet meer en alle kijkers worden weggestuurd. */
+  cmdNewWatchKey(conn, room) {
+    this.watchKeys.delete(room.watchKey);
+    do { room.watchKey = crypto.randomBytes(9).toString('base64url'); } while (this.watchKeys.has(room.watchKey));
+    this.watchKeys.set(room.watchKey, room);
+    this.dropWatchers(room, 'De Host heeft een nieuwe kijk-link gemaakt. De oude link werkt niet meer.');
+    this.touch(room, true);
+  }
+
   cmdCloseRoom(conn, room, host) {
     this.toRoom(room, { t: 'roomClosed', msg: `${host.name} heeft de kamer gesloten.` });
     this.destroy(room);
@@ -1131,7 +1166,8 @@ class Game {
       t: 'state',
       now,
       room: {
-        code: room.code,
+        code: me.watcher ? null : room.code,   // kijkers krijgen de kamercode nooit te zien
+        watchKey: me.id === room.hostId ? room.watchKey : undefined,   // alleen de Host kent de kijk-sleutel
         phase: room.phase,
         round: room.roundNo,
         paused: room.paused,

@@ -14,6 +14,7 @@
 
   <!-- ===================== START SCREEN ===================== -->
   <section id="view-start" class="view">
+    <button id="btn-stream-start" class="btn small ghost stream-btn start-stream" type="button" aria-pressed="false">🎥</button>
     <div class="lang-switch start-lang" role="group" aria-label="Language">
       <button type="button" data-lang="en">EN</button><button type="button" data-lang="nl">NL</button>
     </div>
@@ -41,7 +42,6 @@
         <button id="btn-join" class="btn big">Join</button>
       </div>
 
-      <button id="btn-unwatch" class="btn ghost small" type="button" data-i18n>Toch meespelen</button>
       <button id="btn-rejoin" class="btn ghost" hidden></button>
       <p id="start-error" class="form-error" role="alert"></p>
       <p class="fine" data-i18n>Alleen virtuele fiches - geen echt geld.</p>
@@ -59,6 +59,7 @@
       <div class="lang-switch" role="group" aria-label="Language">
         <button type="button" data-lang="en">EN</button><button type="button" data-lang="nl">NL</button>
       </div>
+      <button id="btn-stream" class="btn small ghost stream-btn" type="button" aria-pressed="false">🎥</button>
       <button id="btn-sound" class="btn small ghost" title="Sound on/off" data-i18n-title="Geluid aan/uit" data-i18n-aria-label="Geluid aan/uit">🔊</button>
       <button id="btn-leave" class="btn small ghost" data-i18n>Verlaat</button>
     </header>

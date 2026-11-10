@@ -77,7 +77,7 @@
     ws: null, open: false, joined: false, me: null, st: null, offset: 0,
     chip: 5, chat: [], retry: 0, noReconnect: false, queue: [],
     orient: null, model: null, modelKey: '', spinRound: null, pending: null, shownRound: 0,
-    lastCountSec: -1,
+    lastCountSec: -1, stream: false,
   };
 
   // ------------------------------------------------------------------ verbinding
@@ -94,7 +94,7 @@
       S.open = true; S.retry = 0;
       $('#conn-banner').hidden = true;
       const ses = store.get('sessionStorage', 'roulette.session');
-      if (ses && !S.noReconnect) send({ t: 'resume', code: ses.code, token: ses.token });
+      if (ses && !S.noReconnect) send(ses.key ? { t: 'resume', key: ses.key, token: ses.token } : { t: 'resume', code: ses.code, token: ses.token });
       while (S.queue.length) send(S.queue.shift());
     };
     ws.onmessage = (e) => {
@@ -140,20 +140,21 @@
   }
 
   function onWelcome(m) {
-    S.me = { id: m.id, token: m.token, code: m.code, name: m.name };
-    store.set('sessionStorage', 'roulette.session', { code: m.code, token: m.token, name: m.name });
-    store.set('localStorage', 'roulette.last', { code: m.code, token: m.token, name: m.name, ts: Date.now() });
-    if (!m.watcher) store.set('localStorage', 'roulette.name', m.name);   // 'Kijker 3' is geen bijnaam
+    S.me = { id: m.id, token: m.token, code: m.code, key: m.key || null, name: m.name };
+    // kijkers kennen de kamercode niet: zij komen terug via de kijk-sleutel
+    store.set('sessionStorage', 'roulette.session', { code: m.code, key: m.key || null, token: m.token, name: m.name });
+    if (!m.watcher) {
+      store.set('localStorage', 'roulette.last', { code: m.code, token: m.token, name: m.name, ts: Date.now() });
+      store.set('localStorage', 'roulette.name', m.name);   // 'Kijker 3' is geen bijnaam
+    }
     S.chat = m.chatLog || [];
     S.joined = true;
     S.shownRound = 0;
     $('#view-start').hidden = true;
     $('#view-game').hidden = false;
     document.body.classList.add('in-game');
-    $('#room-code').textContent = m.code;
-    document.title = `Roulette ${m.code}`;
     renderChat(true);
-    try { history.replaceState(null, '', `?room=${m.code}${m.watcher ? '&watch=1' : ''}`); } catch (e) { /* niets */ }
+    applyStream();
   }
 
   function leaveToStart(msg, keepBlocked) {
@@ -163,6 +164,7 @@
     $('#view-game').hidden = true;
     $('#view-start').hidden = false;
     document.body.classList.remove('in-game', 'watching');
+    applyStream();
     $('#watch-banner').hidden = true;
     $('#result-banner').hidden = true;
     $('#conn-banner').hidden = true;
@@ -790,7 +792,8 @@
       h('div', { class: 'host-grid' },
         btn(t('Kopieer code'), '', () => copy(S.me.code, t('Code gekopieerd'))),
         btn(t('Kopieer link'), '', () => copy(inviteLink(), t('Link gekopieerd'))),
-        btn(t('👁 Kopieer kijk-link'), '', () => copy(watchLink(), t('Kijk-link gekopieerd'))),
+        btn(t('👁 Kopieer kijk-link'), '', () => watchLink() && copy(watchLink(), t('Kijk-link gekopieerd'))),
+        btn(t('↻ Nieuwe kijk-link'), '', () => { if (confirm(t('Een nieuwe kijk-link maken? De oude link werkt dan niet meer en alle kijkers worden weggestuurd.'))) send({ t: 'newWatchKey' }); }),
         btn(t('Iedereen resetten'), '', () => { if (confirm(t('Alle spelers terugzetten naar het startsaldo? Lopende inzetten worden teruggegeven.'))) send({ t: 'resetAll' }); }),
         btn(t('Kamer sluiten'), 'danger', () => { if (confirm(t('De kamer voor iedereen sluiten?'))) send({ t: 'closeRoom' }); })),
       h('p', { class: 'tags', text: t('Tip: klik op ⚙ bij een speler om fiches te geven, te dempen, te kicken of de Host-rol over te dragen.') }),
@@ -1071,7 +1074,7 @@
 
   // ------------------------------------------------------------------ kopiëren
   const inviteLink = () => `${location.origin}${location.pathname}?room=${S.me.code}`;
-  const watchLink = () => inviteLink() + '&watch=1';
+  const watchLink = () => (S.st && S.st.room.watchKey ? `${location.origin}${location.pathname}?watch=${S.st.room.watchKey}` : '');
   function copy(text, okMsg) {
     const done = () => toast(okMsg, 'info');
     if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
@@ -1079,7 +1082,7 @@
   }
   function fallbackCopy(text, done) {
     const ta = h('textarea', { style: 'position:fixed;opacity:0' }); ta.value = text; document.body.append(ta); ta.select();
-    try { document.execCommand('copy'); done(); } catch (e) { toast(t('Kopieer handmatig: {text}', { text }), 'warn'); }
+    try { document.execCommand('copy'); done(); } catch (e) { toast(S.stream ? t('Kopiëren is niet gelukt.') : t('Kopieer handmatig: {text}', { text }), 'warn'); }
     ta.remove();
   }
 
@@ -1089,28 +1092,52 @@
     const b = $('#btn-rejoin');
     if (last && Date.now() - last.ts < 2 * 60 * 1000 * 60 && !S.joined) {
       b.hidden = false;
-      b.textContent = t('Terug naar kamer {code} als {name}', { code: last.code, name: last.name });
+      b.textContent = S.stream ? t('Terug naar je kamer als {name}', { name: last.name }) : t('Terug naar kamer {code} als {name}', { code: last.code, name: last.name });
       b.onclick = () => { S.noReconnect = false; Sound.init(); request({ t: 'resume', code: last.code, token: last.token }); };
     } else b.hidden = true;
   }
 
-  // Kijkmodus op het startscherm: link met ?room=CODE&watch=1 -> geen bijnaam nodig, knop 'Meekijken'
-  let watchMode = false;
+  // Kijkmodus op het startscherm: link met ?watch=SLEUTEL -> geen bijnaam en geen kamercode nodig, knop 'Meekijken'
+  let watchKey = '';
   function renderStartMode() {
-    document.body.classList.toggle('watch-start', watchMode);
-    $('#btn-join').textContent = watchMode ? t('Meekijken') : 'Join';
-    $('#btn-unwatch').hidden = !watchMode;
-    $('#watch-note').textContent = watchMode ? t('Je bent uitgenodigd om mee te kijken. Je hebt geen bijnaam nodig en kunt niets inzetten.') : '';
+    document.body.classList.toggle('watch-start', !!watchKey);
+    $('#btn-join').textContent = watchKey ? t('Meekijken') : 'Join';
+    $('#watch-note').textContent = watchKey ? t('Je bent uitgenodigd om mee te kijken. Je hebt geen bijnaam nodig en kunt niets inzetten.') : '';
   }
-  function setWatchMode(on) {
-    watchMode = on; showStartError('');
-    renderStartMode();
-    try {
-      const code = $('#inp-code').value.trim().toUpperCase();
-      history.replaceState(null, '', code ? `?room=${code}${on ? '&watch=1' : ''}` : location.pathname);
-    } catch (e) { /* niets */ }
+
+  // ------------------------------------------------------------------ streamer-modus (kamercode verbergen)
+  function applyStream() {
+    const on = !!S.stream;
+    document.body.classList.toggle('stream', on);
+    for (const id of ['#btn-stream', '#btn-stream-start']) {
+      const b = $(id);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.classList.toggle('on', on);
+      b.title = t('Streamer-modus: verberg de kamercode');
+      b.setAttribute('aria-label', b.title);
+    }
+    $('#inp-code').type = on ? 'password' : 'text';
+    if (S.joined && S.me) {
+      const code = S.me.code;
+      $('#room-code').textContent = code ? (on ? '•••••' : code) : '-----';
+      document.title = code && !on ? `Roulette ${code}` : 'Roulette Royale';
+      // de kamercode (of kijk-sleutel) hoort niet in de adresbalk te staan op een stream
+      const q = S.me.key ? (on ? '' : `?watch=${S.me.key}`) : (code && !on ? `?room=${code}` : '');
+      try { history.replaceState(null, '', location.pathname + q); } catch (e) { /* niets */ }
+    } else if (on && !watchKey && location.search) {
+      try { history.replaceState(null, '', location.pathname); } catch (e) { /* niets */ }   // startscherm: ?room=CODE uit de adresbalk
+    }
+    renderRejoin();
   }
-  $('#btn-unwatch').addEventListener('click', () => { setWatchMode(false); $('#inp-name').focus(); });
+  for (const id of ['#btn-stream', '#btn-stream-start']) {
+    $(id).addEventListener('click', () => {
+      S.stream = !S.stream;
+      store.set('localStorage', 'roulette.stream', S.stream);
+      applyStream();
+      toast(S.stream ? t('Streamer-modus aan: de kamercode is verborgen.') : t('Streamer-modus uit.'), 'info');
+    });
+  }
+
 
   function getName() { return $('#inp-name').value.trim(); }
   $('#btn-create').addEventListener('click', () => {
@@ -1121,20 +1148,21 @@
   $('#btn-join').addEventListener('click', () => {
     Sound.init(); S.noReconnect = false; showStartError('');
     const code = $('#inp-code').value.trim().toUpperCase();
-    if (!watchMode && !getName()) return showStartError(t('Kies eerst een bijnaam.'));
+    if (watchKey) return request({ t: 'join', watchKey });
+    if (!getName()) return showStartError(t('Kies eerst een bijnaam.'));
     if (code.length !== 5) return showStartError(t('Een kamercode heeft 5 tekens.'));
-    request(watchMode ? { t: 'join', code, watch: true } : Object.assign({ t: 'join', code, name: getName() }, getProfile()));
+    request(Object.assign({ t: 'join', code, name: getName() }, getProfile()));
   });
   $('#inp-name').addEventListener('input', renderAvatarBtn);
   $('#btn-avatar').addEventListener('click', openProfilePicker);
   $('#inp-code').addEventListener('input', (e) => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
   for (const id of ['#inp-name', '#inp-code']) {
-    $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') (($('#inp-code').value ? $('#btn-join') : $('#btn-create'))).click(); });
+    $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') (((watchKey || $('#inp-code').value) ? $('#btn-join') : $('#btn-create'))).click(); });
   }
 
   // ------------------------------------------------------------------ overige knoppen
-  $('#btn-code').addEventListener('click', () => S.me && copy(S.me.code, t('Code gekopieerd')));
-  $('#btn-link').addEventListener('click', () => S.me && (S.st && S.st.me.watcher ? copy(watchLink(), t('Kijk-link gekopieerd')) : copy(inviteLink(), t('Link gekopieerd'))));
+  $('#btn-code').addEventListener('click', () => S.me && S.me.code && copy(S.me.code, t('Code gekopieerd')));
+  $('#btn-link').addEventListener('click', () => S.me && S.me.code && copy(inviteLink(), t('Link gekopieerd')));
   $('#btn-sound').addEventListener('click', () => {
     Sound.on = !Sound.on; Sound.init(); store.set('localStorage', 'roulette.sound', Sound.on);
     $('#btn-sound').textContent = Sound.on ? '🔊' : '🔇';
@@ -1191,6 +1219,7 @@
     renderRejoin();
     renderAvatarBtn();
     renderStartMode();
+    applyStream();
     if (S.joined && S.st) {
       S.modelKey = '';          // tafel opnieuw tekenen met vertaalde labels
       hostUI.built = false;     // host-paneel opnieuw opbouwen
@@ -1209,10 +1238,14 @@
     I18N.applyStatic(document);
     renderChangelogDot();
     const params = new URLSearchParams(location.search);
-    const room = (params.get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+    const wk = params.get('watch') || '';
+    watchKey = /^[A-Za-z0-9_-]{8,24}$/.test(wk) ? wk : '';     // (oude "?watch=1" telt niet)
+    const room = watchKey ? '' : (params.get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
     if (room) $('#inp-code').value = room;
-    watchMode = !!room && params.get('watch') === '1';
+    S.stream = store.get('localStorage', 'roulette.stream') === true;
     renderStartMode();
+    applyStream();
+    if (S.stream) { try { history.replaceState(null, '', location.pathname); } catch (e) { /* niets */ } }
     const name = store.get('localStorage', 'roulette.name');
     if (typeof name === 'string') $('#inp-name').value = name;
     renderAvatarBtn();
@@ -1223,6 +1256,6 @@
     Wheel.resize();
     connect();
     requestAnimationFrame(loop);
-    (room && (name || watchMode) ? $('#btn-join') : $('#inp-name')).focus?.();
+    ((watchKey || (room && name)) ? $('#btn-join') : $('#inp-name')).focus?.();
   })();
 })();

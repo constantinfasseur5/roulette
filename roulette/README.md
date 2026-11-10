@@ -30,7 +30,10 @@ Bovenin (en op het startscherm) staat een **EN | NL**-knop. Standaard is het Eng
 - Onderaan de statistieken staan **8 prestaties** (Eerste winst, Hot streak, Voltreffer, Alles op één kaart, Terug uit de put, Jackpot, Doorzetter, Koning van de tafel). Wie er een haalt, geeft een korte melding voor de hele kamer. Prestaties blijven staan, ook na een reset van de stats.
 
 ### Meekijken
-Het Host-paneel heeft een knop **👁 Kopieer kijk-link** (`?room=CODE&watch=1`). Wie die opent, komt zonder bijnaam binnen als **kijker**: wiel, tafel, spelers en chat zijn zichtbaar, maar inzetten, chatten en Host-acties zijn niet mogelijk (de server weigert alles behalve statistieken bekijken en verlaten). Kijkers tellen niet mee voor de limiet van 12 spelers (max. 30 kijkers), staan niet in de ranglijst en worden bij de spelers als "👁 n" geteld. Op het startscherm kan een kijker kiezen voor **Toch meespelen**. De Host kan kijkers uitzetten met de schakelaar **Meekijkers toestaan**; dan worden ze weggestuurd en nieuwe kijkers geweigerd.
+Het Host-paneel heeft een knop **👁 Kopieer kijk-link** (`?watch=SLEUTEL`). De link heeft een eigen geheime sleutel en bevat de kamercode niet; kijkers krijgen de code ook nooit van de server, dus ze kunnen niet als speler joinen of wisselen. Wie de link opent, komt zonder bijnaam binnen als **kijker**: wiel, tafel, spelers en chat zijn zichtbaar, maar inzetten, chatten en Host-acties zijn niet mogelijk (de server weigert alles behalve statistieken bekijken en verlaten). Kijkers tellen niet mee voor de limiet van 12 spelers (max. 30 kijkers), staan niet in de ranglijst en worden bij de spelers als "👁 n" geteld. Kijken kan ook in een vergrendelde kamer (vergrendelen houdt alleen nieuwe spelers tegen). De Host kan kijkers uitzetten met de schakelaar **Meekijkers toestaan**; dan worden ze weggestuurd en nieuwe kijkers geweigerd. Met **↻ Nieuwe kijk-link** werkt de oude link niet meer en worden alle kijkers weggestuurd.
+
+### Streamer-modus
+De **🎥-knop** (bovenbalk en startscherm) verbergt de kamercode in beeld (•••••), houdt hem uit de adresbalk en de tabtitel en toont het codeveld als wachtwoord. De keuze wordt in je browser onthouden; Kopieer code/link blijven werken. Tip voor streamers: zet de modus aan, vergrendel de kamer zodra je vrienden binnen zijn, en deel alleen de kijk-link.
 
 ## Spelregels
 
@@ -117,7 +120,7 @@ Omgevingsvariabelen (allemaal optioneel): `PORT`, `HOST`, `ALLOWED_ORIGINS` (kom
 npm test      # of: node test/run.js   (Node 22+ voor de netwerktests)
 ```
 
-Dat draait 315 controles: alle inzettypes en uitbetalingen, host-rechten, pauze, reconnect, host-overdracht, spam/te grote berichten, Origin-controle en een echte multiplayer-ronde over WebSockets.
+Dat draait 332 controles: alle inzettypes en uitbetalingen, host-rechten, pauze, reconnect, host-overdracht, spam/te grote berichten, Origin-controle en een echte multiplayer-ronde over WebSockets.
 
 ## Bestanden
 
