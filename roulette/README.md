@@ -27,6 +27,10 @@ Bovenin (en op het startscherm) staat een **EN | NL**-knop. Standaard is het Eng
 - Kies een **avatar** (emoji) en **kleur** op het startscherm (knop naast de bijnaam) of in de kamer met de **✎**-knop. De keuze wordt in je browser onthouden. Je kleur staat ook als rand om je fiches op de tafel.
 - De spelerslijst is een **ranglijst**: de rijkste bovenaan, met 🥇🥈🥉 en ▲▼ voor de plaatsverandering na de laatste ronde. De knop **🏆 Ranglijst** toont een podium met fiches, resultaat t.o.v. de start en winstpercentage.
 - **Klik op een speler** voor statistieken: rondes, gewonnen, grootste winst/verlies, totaal ingezet, totaal resultaat en favoriete inzetten. De Host zet statistieken terug met "reset speler" of "iedereen resetten".
+- Onderaan de statistieken staan **8 prestaties** (Eerste winst, Hot streak, Voltreffer, Alles op één kaart, Terug uit de put, Jackpot, Doorzetter, Koning van de tafel). Wie er een haalt, geeft een korte melding voor de hele kamer. Prestaties blijven staan, ook na een reset van de stats.
+
+### Meekijken
+Het Host-paneel heeft een knop **👁 Kopieer kijk-link** (`?room=CODE&watch=1`). Wie die opent, komt zonder bijnaam binnen als **kijker**: wiel, tafel, spelers en chat zijn zichtbaar, maar inzetten, chatten en Host-acties zijn niet mogelijk (de server weigert alles behalve statistieken bekijken en verlaten). Kijkers tellen niet mee voor de limiet van 12 spelers (max. 30 kijkers), staan niet in de ranglijst en worden bij de spelers als "👁 n" geteld. Op het startscherm kan een kijker kiezen voor **Toch meespelen**. De Host kan kijkers uitzetten met de schakelaar **Meekijkers toestaan**; dan worden ze weggestuurd en nieuwe kijkers geweigerd.
 
 ## Spelregels
 
@@ -113,7 +117,7 @@ Omgevingsvariabelen (allemaal optioneel): `PORT`, `HOST`, `ALLOWED_ORIGINS` (kom
 npm test      # of: node test/run.js   (Node 22+ voor de netwerktests)
 ```
 
-Dat draait 269 controles: alle inzettypes en uitbetalingen, host-rechten, pauze, reconnect, host-overdracht, spam/te grote berichten, Origin-controle en een echte multiplayer-ronde over WebSockets.
+Dat draait 315 controles: alle inzettypes en uitbetalingen, host-rechten, pauze, reconnect, host-overdracht, spam/te grote berichten, Origin-controle en een echte multiplayer-ronde over WebSockets.
 
 ## Bestanden
 
@@ -132,4 +136,4 @@ test/              testsuite
 
 ## Ideeën voor later
 
-Accounts, extra inzettypes (bv. buurnummers/voisins, trio's), prestaties, meekijk-link, database zodat kamers een herstart overleven.
+Accounts, extra inzettypes (bv. buurnummers/voisins, trio's), database zodat kamers een herstart overleven.

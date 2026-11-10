@@ -21,6 +21,7 @@
       <div class="logo-chip" aria-hidden="true"></div>
       <h1>Roulette Royale</h1>
       <p class="tagline"><span data-i18n>Speel samen met vrienden.</span> <b data-i18n>Alleen virtuele fiches, geen echt geld.</b></p>
+      <p id="watch-note" class="watch-note"></p>
 
       <div class="name-row">
         <button id="btn-avatar" class="avatar-btn" type="button" title="Avatar and color" data-i18n-title="Avatar en kleur" data-i18n-aria-label="Avatar en kleur"></button>
@@ -40,6 +41,7 @@
         <button id="btn-join" class="btn big">Join</button>
       </div>
 
+      <button id="btn-unwatch" class="btn ghost small" type="button" data-i18n>Toch meespelen</button>
       <button id="btn-rejoin" class="btn ghost" hidden></button>
       <p id="start-error" class="form-error" role="alert"></p>
       <p class="fine" data-i18n>Alleen virtuele fiches - geen echt geld.</p>
@@ -61,6 +63,7 @@
       <button id="btn-leave" class="btn small ghost" data-i18n>Verlaat</button>
     </header>
 
+    <div id="watch-banner" class="watch-banner" data-i18n>👁 Je kijkt alleen mee. Je kunt niets inzetten of typen.</div>
     <main class="layout">
       <div class="main-col">
         <div class="stage">
@@ -109,6 +112,7 @@
         <section class="card chat-card">
           <h2>Chat</h2>
           <div id="chat-log" class="chat-log"></div>
+          <p id="chat-ro" class="tags chat-ro" data-i18n>Meekijkers kunnen meelezen maar niet chatten.</p>
           <form id="chat-form" class="chat-form" autocomplete="off">
             <input id="chat-input" maxlength="200" placeholder="Type a message…" data-i18n-placeholder="Typ een bericht…">
             <button class="btn small gold" type="submit" data-i18n>Stuur</button>

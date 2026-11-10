@@ -143,7 +143,7 @@
     S.me = { id: m.id, token: m.token, code: m.code, name: m.name };
     store.set('sessionStorage', 'roulette.session', { code: m.code, token: m.token, name: m.name });
     store.set('localStorage', 'roulette.last', { code: m.code, token: m.token, name: m.name, ts: Date.now() });
-    store.set('localStorage', 'roulette.name', m.name);
+    if (!m.watcher) store.set('localStorage', 'roulette.name', m.name);   // 'Kijker 3' is geen bijnaam
     S.chat = m.chatLog || [];
     S.joined = true;
     S.shownRound = 0;
@@ -153,7 +153,7 @@
     $('#room-code').textContent = m.code;
     document.title = `Roulette ${m.code}`;
     renderChat(true);
-    try { history.replaceState(null, '', `?room=${m.code}`); } catch (e) { /* niets */ }
+    try { history.replaceState(null, '', `?room=${m.code}${m.watcher ? '&watch=1' : ''}`); } catch (e) { /* niets */ }
   }
 
   function leaveToStart(msg, keepBlocked) {
@@ -162,7 +162,8 @@
     if (!keepBlocked) store.del('localStorage', 'roulette.last');
     $('#view-game').hidden = true;
     $('#view-start').hidden = false;
-    document.body.classList.remove('in-game');
+    document.body.classList.remove('in-game', 'watching');
+    $('#watch-banner').hidden = true;
     $('#result-banner').hidden = true;
     $('#conn-banner').hidden = true;
     document.title = 'Roulette Royale';
@@ -203,6 +204,9 @@
   }
 
   function renderAll() {
+    const watching = !!S.st.me.watcher;
+    document.body.classList.toggle('watching', watching);
+    $('#watch-banner').hidden = !watching;
     renderTopbar();
     renderMe();
     renderHistory();
@@ -231,7 +235,8 @@
     $('#my-staked').textContent = me.staked ? t('+ {n} ingezet', { n: fmt(me.staked) }) : '';
     const r = S.st.room;
     let hint = '';
-    if (me.spectator) hint = t('Je bent toeschouwer (croupier).');
+    if (me.watcher) hint = t('Je kijkt alleen mee.');
+    else if (me.spectator) hint = t('Je bent toeschouwer (croupier).');
     else if (me.sitOut && r.phase !== 'lobby' && r.phase !== 'results') hint = t('Je doet mee vanaf de volgende ronde.');
     else if (me.chips === 0 && !me.staked) hint = t('Geen fiches meer. Vraag de Host om fiches.');
     else if (r.phase === 'lobby') hint = me.host ? t('Start een ronde in het Host-paneel.') : t('De Host start zo de eerste ronde.');
@@ -304,6 +309,7 @@
   function betBlock() {
     const st = S.st; if (!st) return t('Niet verbonden.');
     const r = st.room, me = st.me;
+    if (me.watcher) return t('Je kijkt alleen mee.');
     if (r.phase !== 'betting') return r.phase === 'lobby' ? t('De Host moet eerst een ronde starten.') : t('De inzetten zijn niet open.');
     if (r.paused) return t('Het spel is gepauzeerd.');
     if (me.spectator) return t('Je bent toeschouwer.');
@@ -682,7 +688,7 @@
   function renderPlayers() {
     const st = S.st;
     const box = $('#players');
-    $('#player-count').textContent = `(${st.players.length}/12)`;
+    $('#player-count').textContent = `(${st.players.length}/12)` + (st.room.watchers ? ` · 👁 ${st.room.watchers}` : '');
     const iAmHost = st.me.host;
     // Ranglijst: rijkste bovenaan, toeschouwers onderaan (stabiele volgorde = inschrijfvolgorde)
     const list = [...st.players].sort((a, b) => (a.rank || 99) - (b.rank || 99));
@@ -772,6 +778,7 @@
       toggle('hostPlays', t('Ik speel zelf mee')),
       toggle('chat', t('Chat aan')),
       toggle('locked', t('Kamer vergrendeld')),
+      toggle('watch', t('Meekijkers toestaan')),
       h('div', { class: 'host-sub', text: t('Instellingen') }),
       h('div', { class: 'num-grid' },
         num('betTime', t('Inzettijd (sec)'), 15, 120), num('startChips', t('Startfiches'), 10, 1000000),
@@ -783,6 +790,7 @@
       h('div', { class: 'host-grid' },
         btn(t('Kopieer code'), '', () => copy(S.me.code, t('Code gekopieerd'))),
         btn(t('Kopieer link'), '', () => copy(inviteLink(), t('Link gekopieerd'))),
+        btn(t('👁 Kopieer kijk-link'), '', () => copy(watchLink(), t('Kijk-link gekopieerd'))),
         btn(t('Iedereen resetten'), '', () => { if (confirm(t('Alle spelers terugzetten naar het startsaldo? Lopende inzetten worden teruggegeven.'))) send({ t: 'resetAll' }); }),
         btn(t('Kamer sluiten'), 'danger', () => { if (confirm(t('De kamer voor iedereen sluiten?'))) send({ t: 'closeRoom' }); })),
       h('p', { class: 'tags', text: t('Tip: klik op ⚙ bij een speler om fiches te geven, te dempen, te kicken of de Host-rol over te dragen.') }),
@@ -804,7 +812,7 @@
     hostUI.extend.disabled = !(r.phase === 'betting' && !paused);
     hostUI.pause.textContent = paused ? t('▶ Hervat') : t('⏸ Pauzeer');
     const between = r.phase === 'lobby' || r.phase === 'results';
-    for (const k of ['auto', 'chat', 'locked']) hostUI[k].checked = !!s[k];
+    for (const k of ['auto', 'chat', 'locked', 'watch']) hostUI[k].checked = !!s[k];
     hostUI.hostPlays.checked = !!s.hostPlays;
     for (const k of ['betTime', 'startChips', 'minBet', 'maxBet', 'rebuyBonus']) {
       if (document.activeElement !== hostUI[k]) hostUI[k].value = s[k];
@@ -924,6 +932,25 @@
     red: t('Rood'), black: t('Zwart'), even: t('Even'), odd: t('Oneven'), low: '1-18', high: '19-36',
   }[k] || k);
 
+  const ACH = [
+    ['first_win', '🎉', 'Eerste winst', 'Win je eerste ronde.'],
+    ['streak3', '🔥', 'Hot streak', 'Win 3 rondes op rij.'],
+    ['straight', '🎯', 'Voltreffer', 'Win met een enkel nummer.'],
+    ['allin', '🎰', 'Alles op één kaart', 'Zet al je fiches in en win.'],
+    ['comeback', '🔄', 'Terug uit de put', 'Kom terug naar je startbedrag nadat je bijna alles kwijt was.'],
+    ['jackpot', '💰', 'Jackpot', 'Win in één ronde minstens je startbedrag.'],
+    ['veteran', '🎖️', 'Doorzetter', 'Speel 10 rondes mee.'],
+    ['king', '👑', 'Koning van de tafel', 'Sta na ronde 20 op nummer 1.'],
+  ];
+  function achievementsEl(list) {
+    const have = new Set(list || []);
+    return h('div', { class: 'ach-wrap' },
+      h('h4', { class: 'ach-h', text: `${t('Prestaties')} ${have.size}/${ACH.length}` }),
+      h('div', { class: 'ach-grid' }, ACH.map(([id, icon, title, desc]) => h('div', { class: 'ach' + (have.has(id) ? ' got' : ''), title: t(desc) },
+        h('span', { class: 'ach-i', text: have.has(id) ? icon : '🔒' }),
+        h('span', { class: 'ach-t', text: t(title) })))));
+  }
+
   function showStats(m) {
     const modal = $('#modal');
     const close = () => { modal.hidden = true; modal.replaceChildren(); };
@@ -944,6 +971,7 @@
         h('div', null, h('h3', { text: m.name }),
           h('div', { class: 'sub', text: (meP && meP.rank ? `#${meP.rank} · ` : '') + t('{n} fiches', { n: fmt(m.chips) }) }))),
       h('div', { class: 'stat-list' }, body),
+      achievementsEl(m.ach),
       h('div', { class: 'modal-grid' },
         mine ? h('button', { class: 'btn small', onclick: () => openProfilePicker() }, t('Avatar en kleur')) : h('span'),
         h('button', { class: 'btn small gold', onclick: close }, t('Sluiten')))));
@@ -1043,6 +1071,7 @@
 
   // ------------------------------------------------------------------ kopiëren
   const inviteLink = () => `${location.origin}${location.pathname}?room=${S.me.code}`;
+  const watchLink = () => inviteLink() + '&watch=1';
   function copy(text, okMsg) {
     const done = () => toast(okMsg, 'info');
     if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
@@ -1065,6 +1094,24 @@
     } else b.hidden = true;
   }
 
+  // Kijkmodus op het startscherm: link met ?room=CODE&watch=1 -> geen bijnaam nodig, knop 'Meekijken'
+  let watchMode = false;
+  function renderStartMode() {
+    document.body.classList.toggle('watch-start', watchMode);
+    $('#btn-join').textContent = watchMode ? t('Meekijken') : 'Join';
+    $('#btn-unwatch').hidden = !watchMode;
+    $('#watch-note').textContent = watchMode ? t('Je bent uitgenodigd om mee te kijken. Je hebt geen bijnaam nodig en kunt niets inzetten.') : '';
+  }
+  function setWatchMode(on) {
+    watchMode = on; showStartError('');
+    renderStartMode();
+    try {
+      const code = $('#inp-code').value.trim().toUpperCase();
+      history.replaceState(null, '', code ? `?room=${code}${on ? '&watch=1' : ''}` : location.pathname);
+    } catch (e) { /* niets */ }
+  }
+  $('#btn-unwatch').addEventListener('click', () => { setWatchMode(false); $('#inp-name').focus(); });
+
   function getName() { return $('#inp-name').value.trim(); }
   $('#btn-create').addEventListener('click', () => {
     Sound.init(); S.noReconnect = false; showStartError('');
@@ -1074,9 +1121,9 @@
   $('#btn-join').addEventListener('click', () => {
     Sound.init(); S.noReconnect = false; showStartError('');
     const code = $('#inp-code').value.trim().toUpperCase();
-    if (!getName()) return showStartError(t('Kies eerst een bijnaam.'));
+    if (!watchMode && !getName()) return showStartError(t('Kies eerst een bijnaam.'));
     if (code.length !== 5) return showStartError(t('Een kamercode heeft 5 tekens.'));
-    request(Object.assign({ t: 'join', code, name: getName() }, getProfile()));
+    request(watchMode ? { t: 'join', code, watch: true } : Object.assign({ t: 'join', code, name: getName() }, getProfile()));
   });
   $('#inp-name').addEventListener('input', renderAvatarBtn);
   $('#btn-avatar').addEventListener('click', openProfilePicker);
@@ -1087,7 +1134,7 @@
 
   // ------------------------------------------------------------------ overige knoppen
   $('#btn-code').addEventListener('click', () => S.me && copy(S.me.code, t('Code gekopieerd')));
-  $('#btn-link').addEventListener('click', () => S.me && copy(inviteLink(), t('Link gekopieerd')));
+  $('#btn-link').addEventListener('click', () => S.me && (S.st && S.st.me.watcher ? copy(watchLink(), t('Kijk-link gekopieerd')) : copy(inviteLink(), t('Link gekopieerd'))));
   $('#btn-sound').addEventListener('click', () => {
     Sound.on = !Sound.on; Sound.init(); store.set('localStorage', 'roulette.sound', Sound.on);
     $('#btn-sound').textContent = Sound.on ? '🔊' : '🔇';
@@ -1143,6 +1190,7 @@
     showStartError('');
     renderRejoin();
     renderAvatarBtn();
+    renderStartMode();
     if (S.joined && S.st) {
       S.modelKey = '';          // tafel opnieuw tekenen met vertaalde labels
       hostUI.built = false;     // host-paneel opnieuw opbouwen
@@ -1163,6 +1211,8 @@
     const params = new URLSearchParams(location.search);
     const room = (params.get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
     if (room) $('#inp-code').value = room;
+    watchMode = !!room && params.get('watch') === '1';
+    renderStartMode();
     const name = store.get('localStorage', 'roulette.name');
     if (typeof name === 'string') $('#inp-name').value = name;
     renderAvatarBtn();
@@ -1173,6 +1223,6 @@
     Wheel.resize();
     connect();
     requestAnimationFrame(loop);
-    (room && name ? $('#btn-join') : $('#inp-name')).focus?.();
+    (room && (name || watchMode) ? $('#btn-join') : $('#inp-name')).focus?.();
   })();
 })();

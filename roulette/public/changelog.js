@@ -5,6 +5,23 @@
  */
 window.CHANGELOG = [
   {
+    id: '2026-11-10-watch',
+    date: '2026-11-10',
+    title: { en: 'Spectator link and achievements', nl: 'Kijk-link en prestaties' },
+    items: {
+      en: [
+        'Watch without playing: the Host can copy a 👁 watch link in the Host panel. Anyone who opens it joins as a spectator (no nickname needed): they see the wheel, the table, the players and the chat, but cannot bet or type. The player count shows how many people are watching.',
+        'A spectator can switch to "Play instead" on the start screen at any time. The Host can turn spectators on or off with the "Allow spectators" switch.',
+        'Achievements: 8 small awards such as First win, Hot streak, Bullseye, All in, Comeback, Jackpot, Stayer and King of the table. When someone earns one, everyone sees a short message. Open a player\'s statistics to see which achievements they have.',
+      ],
+      nl: [
+        'Meekijken zonder mee te spelen: de Host kan in het Host-paneel een 👁 kijk-link kopiëren. Wie die opent komt binnen als kijker (geen bijnaam nodig): je ziet het wiel, de tafel, de spelers en de chat, maar kunt niet inzetten of typen. Bij het aantal spelers staat hoeveel mensen er meekijken.',
+        'Een kijker kan op het startscherm altijd kiezen voor "Toch meespelen". De Host zet kijkers aan of uit met de schakelaar "Meekijkers toestaan".',
+        'Prestaties: 8 kleine beloningen zoals Eerste winst, Hot streak, Voltreffer, Alles op één kaart, Terug uit de put, Jackpot, Doorzetter en Koning van de tafel. Wie er een verdient, ziet iedereen kort in een melding. Open de statistieken van een speler om te zien welke prestaties die heeft.',
+      ],
+    },
+  },
+  {
     id: '2026-11-08-players',
     date: '2026-11-08',
     title: { en: 'Avatars, leaderboard, stats and saved settings', nl: 'Avatars, ranglijst, statistieken en opgeslagen instellingen' },

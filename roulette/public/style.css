@@ -375,3 +375,24 @@ body.in-game .changelog-btn { position: relative; left: auto; bottom: auto; marg
 .preset-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 6px; align-items: center; }
 .preset-row select { min-height: 36px; padding: 0.4rem 0.55rem; min-width: 0; }
 @media (max-width: 420px) { .rank-head, .rank-row { grid-template-columns: 20px 30px minmax(0, 1fr) 60px 56px 40px; gap: 6px; } }
+
+/* ---------- pakket 2: meekijkers + prestaties ---------- */
+.watch-note { margin: -10px 0 14px; text-align: center; color: var(--gold-hi); font-size: 0.88rem; line-height: 1.4; }
+.watch-note:empty { display: none; }
+#btn-unwatch { width: 100%; margin-top: 10px; }
+#btn-unwatch[hidden] { display: none; }
+body.watch-start .name-row, body.watch-start #btn-create, body.watch-start .or { display: none; }
+.watch-banner { display: none; margin: 0 auto 8px; max-width: 1200px; padding: 8px 14px; text-align: center; font-size: 0.9rem; font-weight: 600; color: var(--gold-hi); background: rgba(214, 178, 94, 0.12); border: 1px solid rgba(214, 178, 94, 0.45); border-radius: 12px; }
+.watch-banner:not([hidden]) { display: block; }
+.chat-ro { display: none; margin: 8px 0 0; }
+body.watching .chat-ro { display: block; }
+body.watching .chat-form, body.watching #controls, body.watching .balance { display: none; }
+.toast.ach { border-color: var(--gold); color: var(--gold-hi); }
+.ach-wrap { margin: 4px 0 14px; }
+.ach-h { margin: 0 0 8px; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+.ach-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.ach-grid .ach { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 2px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); text-align: center; opacity: 0.45; min-width: 0; }
+.ach-grid .ach.got { opacity: 1; background: rgba(214, 178, 94, 0.14); border: 1px solid rgba(214, 178, 94, 0.55); }
+.ach-i { font-size: 1.35rem; line-height: 1.1; }
+.ach-t { font-size: 0.66rem; line-height: 1.15; hyphens: auto; overflow-wrap: anywhere; }
+@media (max-width: 420px) { .ach-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

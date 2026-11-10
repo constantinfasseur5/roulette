@@ -556,6 +556,145 @@ async function run() {
   send(Pro, { t: 'leave' });
   await flush();
 
+  group('Pakket 2: meekijkers');
+  await sleep(2000); // rate-limit-budget aanvullen
+  const nPl = room().players.size;
+  const W1 = new Fake('W1');
+  send(W1, { t: 'join', code: H.code, watch: true });
+  const wel = W1.last('welcome');
+  ok(wel && wel.watcher === true && /^Kijker \d+$/.test(wel.name), 'join met watch:true: welkom als kijker, zonder bijnaam');
+  ok(!room().players.has(W1.id) && room().watchers.has(W1.id) && room().players.size === nPl, 'kijker is geen speler en neemt geen plek in');
+  await flush();
+  ok(W1.state && W1.state.me.watcher === true && W1.state.players.length === nPl, 'kijker krijgt state; spelerslijst zonder kijkers');
+  ok(!W1.state.me.forceNext && !W1.state.me.host, 'kijker krijgt geen Host-gegevens');
+  eq(H.state.room.watchers, 1, 'state toont het aantal kijkers (1)');
+
+  const chatBefore = room().chatLog.length, chipsA = P1(A.id).chips;
+  const blocked = [];
+  for (const m of [{ t: 'bet', key: 'red', amount: 5 }, { t: 'chat', text: 'hoi' }, { t: 'start' }, { t: 'spin' }, { t: 'settings', settings: { chat: false } },
+    { t: 'chips', id: A.id, amount: 100, mode: 'set' }, { t: 'kick', id: A.id }, { t: 'forceNext', value: 3 }, { t: 'profile', color: COLORS[0] }, { t: 'resetAll' }, { t: 'closeRoom' }]) {
+    W1.clear(); send(W1, m);
+    if (!W1.lastErr() || W1.lastErr().code !== 'watcher') blocked.push(m.t);
+  }
+  eq(blocked, [], 'een kijker kan niets doen (inzetten, chatten, Host-acties, profiel): overal fout "watcher"');
+  ok(room().chatLog.length === chatBefore && room().settings.chat === true && P1(A.id).chips === chipsA && game.rooms.has(H.code), 'en er is dus niets veranderd');
+  W1.clear(); send(W1, { t: 'pstats', id: A.id });
+  ok(W1.last('pstats') && Array.isArray(W1.last('pstats').ach), 'statistieken bekijken mag wel (met prestaties)');
+  W1.clear(); send(A, { t: 'chat', text: 'hallo kijker' });
+  ok(W1.msgs.some((m) => m.t === 'chat' && m.text === 'hallo kijker'), 'kijker ontvangt de chat');
+
+  send(H, { t: 'settings', settings: { locked: true } });
+  const W2 = new Fake('W2');
+  send(W2, { t: 'join', code: H.code, watch: true });
+  eq(W2.lastErr().code, 'locked', 'vergrendelde kamer: ook niet meekijken');
+  send(H, { t: 'settings', settings: { locked: false } });
+  const maxW = game.o.maxWatchers; game.o.maxWatchers = 2;
+  send(W2, { t: 'join', code: H.code, watch: true });
+  const W3 = new Fake('W3');
+  send(W3, { t: 'join', code: H.code, watch: true });
+  ok(W2.last('welcome') && W3.lastErr() && W3.lastErr().code === 'full', 'maximum aantal kijkers wordt bewaakt');
+  game.o.maxWatchers = maxW;
+
+  send(H, { t: 'settings', settings: { watch: 'nee' } });
+  eq(room().settings.watch, true, 'watch accepteert alleen true/false');
+  send(A, { t: 'settings', settings: { watch: false } });
+  eq(room().settings.watch, true, 'alleen de Host mag meekijken uitzetten');
+
+  const tok2 = W2.token; game.onClose(W2); await flush();
+  const W2b = new Fake('W2b');
+  send(W2b, { t: 'resume', code: H.code, token: tok2 });
+  ok(W2b.last('welcome') && W2b.last('welcome').watcher === true && W2b.id === W2.id, 'kijker kan terugkeren met zijn token (zelfde kijker)');
+  await flush();
+  eq(H.state.room.watchers, 2, 'na terugkeren: nog steeds 2 kijkers (geen dubbele)');
+  send(W2b, { t: 'leave' });
+  ok(W2b.last('left') && !room().watchers.has(W2.id), 'kijker kan de kamer verlaten');
+
+  const W5 = new Fake('W5');
+  send(W5, { t: 'join', code: H.code, watch: true });
+  game.onClose(W5);
+  await sleep(800);
+  ok(!room().watchers.has(W5.id), 'kijker die niet terugkomt wordt na de wachttijd opgeruimd');
+
+  send(H, { t: 'settings', settings: { watch: false } });
+  ok(W1.last('kicked') && room().watchers.size === 0, 'Host zet meekijken uit: kijkers worden weggestuurd');
+  const W4 = new Fake('W4');
+  send(W4, { t: 'join', code: H.code, watch: true });
+  eq(W4.lastErr().code, 'nowatch', 'nieuwe kijkers worden geweigerd zolang het uit staat');
+  send(H, { t: 'settings', settings: { watch: true } });
+  await flush();
+  eq(room().settings.watch, true, 'meekijken weer aan');
+
+  group('Pakket 2: prestaties');
+  await sleep(1000);
+  const AH = new Fake('AchHost'), AP = new Fake('Pia'), AQ = new Fake('Quinn'), AC = new Fake('Cleo'), WA = new Fake('Kijk');
+  send(AH, { t: 'create', name: 'AchHost' });
+  const AR = () => game.rooms.get(AH.code);
+  const ap = () => AR().players.get(AP.id), aq = () => AR().players.get(AQ.id), ac = () => AR().players.get(AC.id);
+  send(AP, { t: 'join', code: AH.code, name: 'Pia' });
+  send(AQ, { t: 'join', code: AH.code, name: 'Quinn' });
+  send(WA, { t: 'join', code: AH.code, watch: true });
+  send(AH, { t: 'settings', settings: { maxBet: 5000, auto: false } });
+  const rnd = async (num, bets) => {
+    send(AH, { t: 'start' });
+    results.push(num);
+    for (const [c, k, a] of bets) send(c, { t: 'bet', key: k, amount: a });
+    send(AH, { t: 'spin' });
+    await sleep(260);
+  };
+  const feed = (c, re) => c.msgs.filter((m) => m.t === 'toast' && m.kind === 'ach' && re.test(m.text)).length;
+
+  await rnd(7, [[AP, 'red', 10], [AQ, 'black', 10]]);
+  eq(ap().ach, ['first_win'], 'eerste gewonnen ronde: "Eerste winst"');
+  eq(aq().ach, [], 'verliezer krijgt niets');
+  eq([feed(AH, /Pia behaalde: Eerste winst!/), feed(WA, /Pia behaalde: Eerste winst!/)], [1, 1], 'iedereen (ook de kijker) krijgt de melding');
+  ok(AR().chatLog.some((m) => m.sys && /🏅 Pia behaalde: Eerste winst!/.test(m.text)), 'melding staat ook in de chat');
+  await rnd(7, [[AP, 'straight:7', 10]]);
+  ok(ap().ach.includes('straight'), 'Voltreffer: gewonnen met een enkel nummer');
+  await rnd(7, [[AP, 'red', 10]]);
+  ok(ap().ach.includes('streak3') && ap().stats.streak === 3, 'Hot streak: 3 gewonnen rondes op rij');
+  eq(AR().chatLog.filter((m) => /Eerste winst/.test(m.text)).length, 1, 'geen dubbele meldingen voor dezelfde prestatie');
+  ok(!ap().ach.includes('king') && !ap().ach.includes('veteran') && !ap().ach.includes('jackpot'), 'nog geen Koning/Doorzetter/Jackpot');
+  await rnd(7, [[AP, 'black', 10]]);
+  eq(ap().stats.streak, 0, 'verlies zet de reeks terug op 0');
+  for (let i = 0; i < 6; i++) await rnd(7, [[AP, 'red', 10]]);
+  ok(ap().stats.rounds === 10 && ap().ach.includes('veteran'), 'Doorzetter: 10 rondes gespeeld');
+
+  send(AC, { t: 'join', code: AH.code, name: 'Cleo' });
+  const allQ = aq().chips;
+  await rnd(7, [[AP, 'straight:7', 50], [AQ, 'red', allQ], [AC, 'black', 1000]]);
+  ok(ap().ach.includes('jackpot') && !aq().ach.includes('jackpot'), 'Jackpot: minstens je startbedrag winnen in één ronde');
+  ok(aq().ach.includes('allin') && !ap().ach.includes('allin'), 'Alles op één kaart: alle fiches ingezet én gewonnen');
+  eq(ac().chips, 0, 'Cleo verloor alles');
+  ok(!ac().ach.includes('comeback'), 'nog geen comeback');
+  send(AH, { t: 'chips', id: AC.id, amount: 950 });
+  await rnd(7, [[AC, 'red', 50]]);
+  ok(ac().chips >= 1000 && ac().ach.includes('comeback'), 'Terug uit de put: weer op het startbedrag na bijna alles kwijt');
+
+  AQ.clear(); send(AQ, { t: 'pstats', id: AP.id });
+  eq(AQ.last('pstats').ach, ap().ach, 'pstats geeft de prestaties van de speler mee');
+  ok(AQ.last('pstats').ach !== ap().ach, 'pstats geeft een kopie (geen levende lijst)');
+
+  AR().roundNo = 18;
+  await rnd(7, [[AQ, 'red', 10]]);   // ronde 19: nog geen koning
+  ok(!aq().ach.includes('king') && !ap().ach.includes('king'), 'ronde 19: nog geen Koning van de tafel');
+  await rnd(7, [[AP, 'red', 10]]);   // ronde 20
+  ok(AR().roundNo === 20, 'ronde 20 bereikt');
+  const kings = [...AR().players.values()].filter((p) => p.ach.includes('king'));
+  eq(kings.length, 1, 'precies één Koning van de tafel');
+  const ranks20 = game.ranks(AR());
+  eq(ranks20.get(kings[0].id), 1, 'de koning staat op nummer 1');
+  await rnd(7, [[AP, 'red', 10]]);   // ronde 21
+  eq(AR().chatLog.filter((m) => /Koning van de tafel/.test(m.text)).length, 1, 'Koning wordt maar één keer gemeld');
+
+  const achP = [...ap().ach];
+  send(AH, { t: 'resetPlayer', id: AP.id });
+  eq([ap().ach, ap().stats.rounds, ap().stats.streak], [achP, 0, 0], 'Host reset speler: stats weg, prestaties blijven');
+  send(AH, { t: 'resetAll' });
+  ok(aq().ach.includes('allin') && ac().ach.includes('comeback'), 'ook na "Iedereen resetten" blijven prestaties staan');
+  eq(new Set(ap().ach).size, ap().ach.length, 'nergens dubbele prestaties');
+  send(AH, { t: 'closeRoom' });
+  ok(!game.rooms.has(AH.code), 'extra kamer opgeruimd');
+
   group('Terugkeren (reconnect)');
   const Bn = B.token;
   const chipsB = room().players.get(B.id).chips;
