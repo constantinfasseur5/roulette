@@ -1,135 +1,109 @@
-# Roulette Royale — multiplayer roulette met kamercodes
+# Roulette Royale — multiplayer roulette with room codes
 
-Speel roulette met vrienden: één persoon maakt een kamer en deelt de code of link, de rest joint.
-**Alleen virtuele fiches. Geen echt geld, geen betalingen.**
+Play roulette with friends: one person creates a room and shares the code or link, everyone else joins.
+**Virtual chips only. No real money, no payments.**
 
-Het project heeft **geen externe pakketten** nodig (geen `npm install`). Alleen Node.js 18 of nieuwer.
+## Try it out
 
-## Snel starten
+Want to try the site? Go to **Roulette With Friends**: <https://roulettewithfriends.onrender.com/>
 
-```bash
-node server.js        # of: npm start
-```
+1. Enter a nickname and click **Create room**. You are now the Host.
+2. Others open the same site, enter a nickname + the 5-character **room code** (or open your **link**, which fills in the code) and click **Join**.
+3. As Host, click **Start round** in the Host panel. Everyone places chips on the table; then the wheel spins.
 
-Open daarna <http://localhost:3000>.
+### Testing with multiple tabs
+Open the site in several tabs. Each tab is its own player (the session is stored per tab, so tabs don't interfere). Refreshing a tab brings you back with your balance. If you close a tab and open a new one, the start screen shows a **"Back to room …"** button.
 
-1. Vul een bijnaam in en klik **Maak kamer**. Jij bent nu de Host.
-2. Anderen openen dezelfde site, vullen bijnaam + de 5-letterige **kamercode** in (of openen je **link**, dan staat de code al ingevuld) en klikken **Join**.
-3. Als Host klik je in het Host-paneel op **Start ronde**. Iedereen zet fiches in op de tafel; daarna draait het wiel.
+### Language
+There is an **EN | NL** button at the top (and on the start screen). English is the default; your choice is remembered. Translations live in `public/i18n.js`; the server keeps sending Dutch and the website translates those messages.
 
-### Testen met meerdere tabbladen
-Open meerdere tabbladen op `http://localhost:3000`. Elk tabblad is een eigen speler (de sessie staat per tabblad, dus tabbladen komen elkaar niet in de weg). Een refresh in hetzelfde tabblad brengt je terug met je saldo. Sluit je een tabblad en open je een nieuw, dan verschijnt op het startscherm een knop **"Terug naar kamer …"**.
+### Avatar, leaderboard and statistics
+- Pick an **avatar** (emoji) and **color** on the start screen (button next to the nickname) or in the room with the **✎** button. Your choice is remembered in your browser. Your color also outlines your chips on the table.
+- The player list is a **leaderboard**: richest on top, with 🥇🥈🥉 and ▲▼ showing the change in position after the last round. The **🏆 Leaderboard** button shows a podium with chips, result versus the start and win percentage.
+- **Click a player** for statistics: rounds, wins, biggest win/loss, total staked, total result and favorite bets. The Host resets statistics with "reset player" or "reset everyone".
+- At the bottom of the statistics are **8 achievements** (First win, Hot streak, Bullseye, All in, Comeback, Jackpot, Stayer, King of the table). When someone earns one, the whole room gets a short message. Achievements are kept even when stats are reset.
 
-### Taal
-Bovenin (en op het startscherm) staat een **EN | NL**-knop. Standaard is het Engels; de keuze wordt onthouden. Vertalingen staan in `public/i18n.js`; de server blijft Nederlands sturen en de website vertaalt die berichten.
+### Spectators (watch link)
+The Host panel has a **👁 Copy watch link** button (`?watch=KEY`). The link has its own secret key and does not contain the room code; spectators never receive the code from the server, so they cannot join as a player or switch to playing. Whoever opens the link enters without a nickname as a **spectator**: the wheel, table, players and chat are visible, but betting, chatting and Host actions are not possible (the server rejects everything except viewing statistics and leaving). Spectators do not count towards the 12-player limit (max. 30 spectators), are not in the leaderboard and are shown next to the player count as "👁 n". Watching also works in a locked room (locking only stops new players). The Host can turn spectators off with the **Allow spectators** switch; they are then removed and new spectators are refused. With **↻ New watch link** the old link stops working and all spectators are removed.
 
-### Avatar, ranglijst en statistieken
-- Kies een **avatar** (emoji) en **kleur** op het startscherm (knop naast de bijnaam) of in de kamer met de **✎**-knop. De keuze wordt in je browser onthouden. Je kleur staat ook als rand om je fiches op de tafel.
-- De spelerslijst is een **ranglijst**: de rijkste bovenaan, met 🥇🥈🥉 en ▲▼ voor de plaatsverandering na de laatste ronde. De knop **🏆 Ranglijst** toont een podium met fiches, resultaat t.o.v. de start en winstpercentage.
-- **Klik op een speler** voor statistieken: rondes, gewonnen, grootste winst/verlies, totaal ingezet, totaal resultaat en favoriete inzetten. De Host zet statistieken terug met "reset speler" of "iedereen resetten".
+### Streamer mode
+The **🎥 button** (top bar and start screen) hides the room code on screen (•••••), keeps it out of the address bar and the tab title, and shows the code field as a password field. Your choice is remembered in your browser; Copy code/link keep working. Tip for streamers: turn the mode on, lock the room once your friends are in, and share only the watch link.
 
-## Spelregels
+## Rules
 
-Europees (0) of Amerikaans (0 en 00), te kiezen door de Host tussen rondes.
+European (0) or American (0 and 00), chosen by the Host between rounds.
 
-| Inzet | Uitbetaling |
+| Bet | Payout |
 |---|---|
-| Enkel nummer | 35:1 |
-| Split (2 nummers) | 17:1 |
+| Straight (single number) | 35:1 |
+| Split (2 numbers) | 17:1 |
 | Street (3) | 11:1 |
-| Corner (4) en "eerste vier" 0-1-2-3 (alleen Europees) | 8:1 |
+| Corner (4) and "first four" 0-1-2-3 (European only) | 8:1 |
 | Six line (6) | 5:1 |
-| Kolom, dozijn | 2:1 |
-| Rood/zwart, even/oneven, 1-18 / 19-36 | 1:1 |
+| Column, dozen | 2:1 |
+| Red/black, even/odd, 1-18 / 19-36 | 1:1 |
 
-Bij 0 (en 00) verliezen alle buiteninzetten. Klik op een vakje of op de **ronde klikpunten tussen vakjes** (splits, streets, corners, six lines). Knoppen: **Ongedaan**, **Wis alles**, **Herhaal vorige**, **Verdubbel**.
+On 0 (and 00) all outside bets lose. Click a cell or the **round click points between cells** (splits, streets, corners, six lines). Buttons: **Undo**, **Clear all**, **Repeat last**, **Double**.
 
-## Wat kan de Host?
+## What can the Host do?
 
-Alles zit in het **Host-paneel** (alleen zichtbaar voor de Host; de server controleert de rechten):
+Everything is in the **Host panel** (only visible to the Host; the server checks permissions).
+The panel collapses into a small bar with the ▾ triangle and opens again; your choice is remembered in your browser.
 
-- Ronde starten, inzetten sluiten, wiel draaien, **+10 seconden**, pauzeren/hervatten
-- **Automatisch** aan/uit (rondes lopen vanzelf door, of alles handmatig)
-- Inzettijd, startfiches, min/max inzet per vak, **herstart-bonus** voor spelers die blut zijn
-- Variant: Europees of Amerikaans (alleen tussen rondes)
-- **Ik speel zelf mee** aan/uit (uit = croupier/toeschouwer)
-- Chat aan/uit, kamer **vergrendelen**
-- Per speler (knop ⚙): fiches geven/afnemen/instellen, resetten, dempen, **Host-rol overdragen**, kicken, verbannen
-- Iedereen resetten naar startsaldo, code/link kopiëren, **kamer sluiten**
-- **Opgeslagen instellingen:** bewaar je kamerinstellingen onder een naam (tot 8, alleen in jouw browser) en laad ze met één klik in een nieuwe kamer. Variant en min/max inzet laden alleen tussen rondes.
+- Start a round, close betting, spin the wheel, **+10 seconds**, pause/resume
+- **Automatic** on/off (rounds run by themselves, or everything manual)
+- Betting time, starting chips, min/max bet per spot, **rebuy bonus** for players who are broke
+- Variant: European or American (only between rounds)
+- **I play too** on/off (off = croupier/spectator)
+- Chat on/off, **lock** the room, allow spectators, copy/renew the watch link
+- Per player (⚙ button): give/take/set chips, reset, mute, **hand over the Host role**, kick, ban
+- Reset everyone to the starting balance, copy code/link, **close the room**
+- **Saved settings:** save your room settings under a name (up to 8, only in your browser) and load them with one click in a new room. Variant and min/max bet only load between rounds.
 
-Als de Host 60 seconden wegvalt, gaat de Host-rol automatisch naar de speler die het langst in de kamer zit.
+If the Host is gone for 60 seconds, the Host role automatically goes to the player who has been in the room the longest.
 
-## Regels van de kamer
+## Room rules
 
-- Code van 5 tekens, zonder verwarrende tekens (geen O/0/I/1). Maximaal 12 spelers.
-- Dubbele bijnamen worden geweigerd. Bijnamen zijn max. 16 tekens.
-- Weg of refresh? Binnen 2 minuten terugkeren met hetzelfde saldo (sessie-token).
-- Join je midden in een ronde, dan speel je mee vanaf de volgende.
-- Geen fiches meer? Je blijft in de kamer als toeschouwer tot de Host fiches geeft (of de herstart-bonus aan staat).
-- Lege kamers worden na 10 minuten verwijderd.
+- 5-character code, without confusing characters (no O/0/I/1). Maximum 12 players.
+- Duplicate nicknames are refused. Nicknames are max. 16 characters.
+- Gone or refreshed? Come back within 2 minutes with the same balance (session token).
+- Join in the middle of a round and you play from the next one.
+- Out of chips? You stay in the room as a spectator until the Host gives chips (or the rebuy bonus is on).
+- Empty rooms are removed after 10 minutes.
+- Rooms live in memory: if the site restarts or has been asleep for a while, open rooms are gone and you simply create a new one.
 
-## Online zetten zonder eigen server (gratis, geen IP delen)
+## Security in short
 
-Zo draait de app altijd en krijg je een eigen link als `https://roulette-royale.onrender.com` om te delen. Je eigen computer en IP komen er niet aan te pas.
-
-1. Zet de map op GitHub (nieuw repository, bestanden uploaden via "Add file > Upload files" werkt ook).
-2. Maak een gratis account op <https://render.com> en kies **New > Blueprint** (of **New > Web Service**) en koppel je repository.
-3. Bij Blueprint pakt Render `render.yaml` vanzelf. Bij Web Service vul je in: Build command leeg of `echo ok`, Start command `node server.js`, plan **Free**.
-4. Na een minuutje krijg je de link. Open die, maak een kamer en deel de link of de code.
-
-Goed om te weten over de gratis variant van Render:
-- De dienst gaat slapen na 15 minuten zonder verkeer en is na ongeveer een minuut weer wakker als iemand de link opent. Tijdens een spel houden de berichten hem wakker (de app stuurt zelf ook elke 2 minuten een ping).
-- Slaapt de dienst, dan zijn open kamers weg. De eerste die daarna opent, wacht even en maakt een nieuwe kamer.
-- Er zijn 750 gratis uren per maand, genoeg voor een dienst die de hele maand aanstaat.
-
-Andere hosts die WebSockets ondersteunen (Railway, Fly.io, Koyeb of een eigen VPS) werken ook: start command `node server.js`, poort uit `PORT`.
-
-## Technische details voor hosting
-
-De app is één Node-proces met WebSockets. Kies een host die WebSockets ondersteunt (Render, Railway en Fly doen dat).
-
-- **Build command:** leeg laten (er is niets te installeren)
-- **Start command:** `node server.js`
-- De poort wordt uit de omgevingsvariabele `PORT` gelezen.
-- Gebruik HTTPS: de client schakelt dan zelf over op `wss://`.
-- Gezondheidscontrole: `/health`
-
-Omgevingsvariabelen (allemaal optioneel): `PORT`, `HOST`, `ALLOWED_ORIGINS` (komma-gescheiden, alleen nodig als de pagina vanaf een andere domeinnaam dan de server wordt geladen).
-
-**Let op:** kamers staan in het geheugen. Bij een herstart van de server zijn ze weg, en draai maar **één instantie** (geen load balancer met meerdere kopieën).
-
-## Beveiliging in het kort
-
-- De server beslist alles: uitslag (`crypto.randomInt`, tenzij de Host als spelleider zelf een getal vastzet), saldo's, uitbetalingen en timers. De browser kan niets vervalsen.
-- Alle invoer wordt server-side gecontroleerd (bedragen, inzetsleutels, fase, rechten).
-- Bijnamen en chat worden in de browser nooit als HTML getoond (geen XSS). Content-Security-Policy staat aan.
-- WebSockets controleren de Origin, hebben een maximale berichtgrootte (4 KB), rate limiting en een heartbeat.
-- Verbannen werkt op bijnaam + sessie en is dus "best effort": wie een andere bijnaam kiest en een nieuwe sessie start, komt er weer in. Wil je dat niet, vergrendel dan de kamer.
+- The server decides everything: the result (`crypto.randomInt`, unless the Host as game master sets a number), balances, payouts and timers. The browser cannot forge anything.
+- All input is validated server-side (amounts, bet keys, phase, permissions).
+- Nicknames and chat are never shown as HTML in the browser (no XSS). Content-Security-Policy is on.
+- WebSockets check the Origin, have a maximum message size (4 KB), rate limiting and a heartbeat.
+- The watch link uses its own secret key; spectators never get the room code and cannot do anything except watch.
+- Banning works on nickname + session and is therefore "best effort": someone who picks another nickname and starts a new session gets back in. If you don't want that, lock the room.
 
 ## Tests
 
 ```bash
-npm test      # of: node test/run.js   (Node 22+ voor de netwerktests)
+npm test      # or: node test/run.js
 ```
 
-Dat draait 269 controles: alle inzettypes en uitbetalingen, host-rechten, pauze, reconnect, host-overdracht, spam/te grote berichten, Origin-controle en een echte multiplayer-ronde over WebSockets.
+This runs 332 checks: all bet types and payouts, Host permissions, pause, reconnect, Host handover, spam/oversized messages, Origin check, spectators, achievements and a real multiplayer round over WebSockets.
 
-## Bestanden
+## Files
 
 ```
-server.js          HTTP-server voor de site + WebSocket-endpoint (/ws)
-lib/game.js        alle spellogica: kamers, rondes, host-acties, uitbetalingen
-lib/ws.js          eigen kleine WebSocket-server (RFC 6455), geen pakketten
-public/rules.js    inzetten + uitbetalingen (gedeeld door server en browser)
-public/index.html  pagina's
-public/style.css   casino-thema
-public/app.js      client: tafel, wiel, chat, host-paneel, geluid, ranglijst, profiel
-public/i18n.js     vertalingen (EN/NL)
-public/changelog.js  de Update log op de site
-test/              testsuite
+server.js          HTTP server for the site + WebSocket endpoint (/ws)
+lib/game.js        all game logic: rooms, rounds, Host actions, payouts
+lib/ws.js          own small WebSocket server (RFC 6455), no packages
+public/rules.js    bets + payouts (shared by server and browser)
+public/index.html  pages
+public/style.css   casino theme
+public/app.js      client: table, wheel, chat, Host panel, sound, leaderboard, profile
+public/i18n.js     translations (EN/NL)
+public/changelog.js  the Update log on the site
+test/              test suite
 ```
 
-## Ideeën voor later
+## Ideas for later
 
-Accounts, extra inzettypes (bv. buurnummers/voisins, trio's), prestaties, meekijk-link, database zodat kamers een herstart overleven.
+Accounts, extra bet types (e.g. neighbors/voisins, trio), a database so rooms survive a restart.
