@@ -33,6 +33,8 @@
     'Terug naar je kamer als {name}': 'Back to your room as {name}',
     'Kopiëren is niet gelukt.': 'Copying did not work.',
     '↻ Nieuwe kijk-link': '↻ New watch link',
+    'Host-paneel openen': 'Open Host panel',
+    'Host-paneel sluiten': 'Close Host panel',
     'Een nieuwe kijk-link maken? De oude link werkt dan niet meer en alle kijkers worden weggestuurd.': 'Make a new watch link? The old link stops working and all spectators are removed.',
     'Er kijken al genoeg mensen mee (max. {n}).': 'Enough people are already watching (max. {n}).',
     'De Host heeft meekijken uitgezet.': 'The Host turned off watching.',

@@ -55,6 +55,9 @@ Bij 0 (en 00) verliezen alle buiteninzetten. Klik op een vakje of op de **ronde 
 
 Alles zit in het **Host-paneel** (alleen zichtbaar voor de Host; de server controleert de rechten):
 
+*Het paneel klapt met het ▾-driehoekje in tot een klein balkje en weer open; je keuze wordt in je browser onthouden.*
+
+
 - Ronde starten, inzetten sluiten, wiel draaien, **+10 seconden**, pauzeren/hervatten
 - **Automatisch** aan/uit (rondes lopen vanzelf door, of alles handmatig)
 - Inzettijd, startfiches, min/max inzet per vak, **herstart-bonus** voor spelers die blut zijn

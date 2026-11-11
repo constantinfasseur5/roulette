@@ -5,6 +5,19 @@
  */
 window.CHANGELOG = [
   {
+    id: '2026-11-10-hostpanel',
+    date: '2026-11-10',
+    title: { en: 'Collapsible Host panel', nl: 'Inklapbaar Host-paneel' },
+    items: {
+      en: [
+        'The Host panel can now be collapsed into a small bar: click the ▾ triangle (or the title) to close it and click again to open it. Your choice is remembered in your browser.',
+      ],
+      nl: [
+        'Het Host-paneel kan nu dichtgeklapt worden tot een klein balkje: klik op het ▾-driehoekje (of de titel) om het te sluiten en nog een keer om het te openen. Je keuze wordt onthouden in je browser.',
+      ],
+    },
+  },
+  {
     id: '2026-11-10-stream',
     date: '2026-11-10',
     title: { en: 'Safe streaming: private watch link and hidden room code', nl: 'Veilig streamen: privé kijk-link en verborgen kamercode' },

@@ -772,8 +772,10 @@
     hostUI.extend = btn(t('+10 seconden'), '', () => send({ t: 'extend', sec: 10 }));
     hostUI.pause = btn(t('⏸ Pauzeer'), '', () => send({ t: 'pause', value: !S.st.room.paused }));
 
+    hostUI.head = h('button', { class: 'hp-head', type: 'button', onclick: () => setHostCollapsed(!hostCollapsed()) },
+      h('span', { class: 'hp-title', text: t('👑 Host-paneel') }), h('span', { class: 'hp-tri', 'aria-hidden': 'true', text: '▾' }));
     p.replaceChildren(
-      h('h2', { text: t('👑 Host-paneel') }),
+      hostUI.head,
       h('div', { class: 'host-grid' }, hostUI.start, hostUI.close, hostUI.spin, hostUI.extend, hostUI.pause),
       hostUI.forceBox,
       toggle('auto', t('Automatisch (rondes lopen vanzelf)')),
@@ -800,6 +802,19 @@
     );
     hostUI.built = true;
     refreshPresets();
+    applyHostCollapsed();
+  }
+
+  // Het Host-paneel kan dichtgeklapt worden tot een klein balkje (onthouden in deze browser)
+  const hostCollapsed = () => store.get('localStorage', 'roulette.hostclosed') === true;
+  function setHostCollapsed(on) { store.set('localStorage', 'roulette.hostclosed', on); applyHostCollapsed(); }
+  function applyHostCollapsed() {
+    const on = hostCollapsed(), p = $('#host-panel');
+    p.classList.toggle('collapsed', on);
+    if (hostUI.head) {
+      hostUI.head.setAttribute('aria-expanded', on ? 'false' : 'true');
+      hostUI.head.title = on ? t('Host-paneel openen') : t('Host-paneel sluiten');
+    }
   }
 
   function renderHost() {

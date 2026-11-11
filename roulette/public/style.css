@@ -402,3 +402,13 @@ body.watching #btn-code, body.watching #btn-link, body.watching #btn-stream { di
 .stream-btn { min-width: 38px; padding-left: 8px; padding-right: 8px; }
 .btn.stream-btn.on { background: var(--gold); border-color: var(--gold); color: #2b1a02; }
 .start-stream { position: absolute; top: 14px; left: 14px; z-index: 2; }
+
+/* ---------- inklapbaar Host-paneel ---------- */
+.hp-head { appearance: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; margin: 0 0 10px; padding: 0; background: none; border: 0; cursor: pointer; text-align: left; touch-action: manipulation;
+  font-family: Georgia, serif; font-size: 1.05rem; letter-spacing: 0.04em; color: var(--gold-hi); }
+.hp-tri { flex: none; display: grid; place-items: center; width: 28px; height: 24px; border: 1px solid var(--line); border-radius: 8px; font-family: system-ui, sans-serif; font-size: 0.85rem; color: var(--gold-hi); transition: transform 0.15s; }
+.hp-head:hover .hp-tri, .hp-head:focus-visible .hp-tri { background: rgba(255, 255, 255, 0.1); }
+#host-panel.collapsed { padding-top: 8px; padding-bottom: 8px; }
+#host-panel.collapsed > :not(.hp-head) { display: none !important; }
+#host-panel.collapsed .hp-head { margin: 0; }
+#host-panel.collapsed .hp-tri { transform: rotate(-90deg); }
