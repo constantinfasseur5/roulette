@@ -412,3 +412,9 @@ body.watching #btn-code, body.watching #btn-link, body.watching #btn-stream { di
 #host-panel.collapsed > :not(.hp-head) { display: none !important; }
 #host-panel.collapsed .hp-head { margin: 0; }
 #host-panel.collapsed .hp-tri { transform: rotate(-90deg); }
+
+/* ---------- inzetten van andere spelers ---------- */
+.chip-other { position: absolute; transform: translate(-50%, -50%); z-index: 7; pointer-events: none; min-width: calc(var(--chip) * 0.62); height: calc(var(--chip) * 0.62); padding: 0 3px; border-radius: 999px; display: grid; place-items: center;
+  background: var(--oc, #888); color: #fff; font-size: calc(var(--chip) * 0.27); font-weight: 800; line-height: 1; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6); border: 1.5px solid rgba(255, 255, 255, 0.85); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }
+.chip-other.lost { opacity: 0.35; }
+.chip-other.won { animation: chipWin 0.7s ease-in-out infinite alternate; }

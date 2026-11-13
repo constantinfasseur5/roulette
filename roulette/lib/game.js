@@ -42,6 +42,7 @@ const DEFAULT_SETTINGS = {
   locked: false,
   chat: true,
   watch: true,      // meekijkers toegestaan (alleen kijken, niet inzetten of chatten)
+  showBets: true,   // inzetten van anderen zichtbaar op de tafel
   rebuyBonus: 0,
 };
 
@@ -972,14 +973,14 @@ class Game {
       return this.err(conn, 'Min/max inzet kun je alleen tussen rondes wijzigen.');
     }
     if (next.minBet > next.maxBet) return this.err(conn, 'De minimale inzet mag niet hoger zijn dan de maximale.');
-    for (const name of ['auto', 'hostPlays', 'locked', 'chat', 'watch']) {
+    for (const name of ['auto', 'hostPlays', 'locked', 'chat', 'watch', 'showBets']) {
       if (name in S) {
         if (typeof S[name] !== 'boolean') return this.err(conn, `Ongeldige waarde voor ${name}.`);
         next[name] = S[name];
       }
     }
 
-    const names = { variant: 'variant', betTime: 'inzettijd', startChips: 'startfiches', minBet: 'min. inzet', maxBet: 'max. inzet', rebuyBonus: 'herstart-bonus', auto: 'automatisch', hostPlays: 'host speelt mee', locked: 'vergrendeld', chat: 'chat', watch: 'meekijkers' };
+    const names = { variant: 'variant', betTime: 'inzettijd', startChips: 'startfiches', minBet: 'min. inzet', maxBet: 'max. inzet', rebuyBonus: 'herstart-bonus', auto: 'automatisch', hostPlays: 'host speelt mee', locked: 'vergrendeld', chat: 'chat', watch: 'meekijkers', showBets: 'inzetten zichtbaar' };
     for (const k of Object.keys(next)) if (next[k] !== s[k]) changes.push(k);
     if (!changes.length) return;
 
@@ -1182,6 +1183,10 @@ class Game {
         spin: room.spin ? { result: room.spin.result, variant: room.spin.variant, startedAt: room.spin.startedAt, duration: room.spin.duration } : null,
       },
       players,
+      // inzetten van de andere spelers (alleen als de Host dat toestaat)
+      others: room.settings.showBets
+        ? [...room.players.values()].filter((p) => p.id !== me.id && p.bets.size).map((p) => ({ id: p.id, bets: Object.fromEntries(p.bets) }))
+        : [],
       me: {
         id: me.id,
         chips: me.chips,

@@ -5,6 +5,21 @@
  */
 window.CHANGELOG = [
   {
+    id: '2026-11-13-bets',
+    date: '2026-11-13',
+    title: { en: 'See where others bet', nl: 'Zie waarop anderen inzetten' },
+    items: {
+      en: [
+        'You can now see where the other players place their bets: small bubbles in their color appear next to the spot on the table, with the amount. Hover over one to see who it is. After the spin you see which bets won.',
+        'Host: you can turn this off with the "Show other players\' bets" switch in the Host panel.',
+      ],
+      nl: [
+        'Je ziet nu waarop de andere spelers inzetten: kleine bolletjes in hun kleur verschijnen naast het vak op de tafel, met het bedrag. Wijs er een aan om te zien van wie het is. Na de draai zie je welke inzetten gewonnen hebben.',
+        'Host: je kunt dit uitzetten met de schakelaar "Inzetten van anderen tonen" in het Host-paneel.',
+      ],
+    },
+  },
+  {
     id: '2026-11-10-hostpanel',
     date: '2026-11-10',
     title: { en: 'Collapsible Host panel', nl: 'Inklapbaar Host-paneel' },

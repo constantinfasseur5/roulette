@@ -556,6 +556,29 @@ async function run() {
   send(Pro, { t: 'leave' });
   await flush();
 
+  group('Inzetten van anderen zichtbaar');
+  await sleep(2000);
+  send(H, { t: 'settings', settings: { auto: false } });
+  if (room().phase !== 'betting') { send(H, { t: 'start' }); }
+  await flush();
+  send(A, { t: 'bet', key: 'red', amount: 5 });
+  await flush();
+  const seenByB = B.state.others.find((o) => o.id === A.id);
+  ok(seenByB && seenByB.bets.red === 5, 'andere spelers zien waarop A inzet');
+  ok(!A.state.others.some((o) => o.id === A.id), 'je ziet jezelf niet dubbel in "others"');
+  ok(JSON.stringify(B.state.others).indexOf('token') < 0, 'others bevat alleen id + inzetten');
+  send(H, { t: 'settings', settings: { showBets: false } });
+  await flush();
+  eq(B.state.others, [], 'Host zet zichtbaarheid uit: niemand ziet andermans inzetten');
+  ok(B.state.me.bets && A.state.me.bets.red === 5, 'je eigen inzetten blijven zichtbaar');
+  send(H, { t: 'settings', settings: { showBets: 'ja' } });
+  eq(room().settings.showBets, false, 'alleen true/false geldt');
+  send(H, { t: 'settings', settings: { showBets: true } });
+  await flush();
+  ok(B.state.others.length >= 1, 'weer aan: inzetten zichtbaar');
+  send(A, { t: 'undo' }); await flush();
+  send(H, { t: 'spin' }); await sleep(400);   // ronde afmaken; automatisch blijft uit, zoals voorheen
+
   group('Pakket 2: meekijkers');
   await sleep(2000); // rate-limit-budget aanvullen
   const nPl = room().players.size;
@@ -775,6 +798,7 @@ async function run() {
   ok(A2.id === A.id && room().hostId === H.id, 'Ali komt terug als gewone speler');
 
   group('Auto-modus: ronde na ronde');
+  await sleep(2000); // rate-limit-budget aanvullen
   send(H, { t: 'settings', settings: { auto: true, betTime: 1 } });
   eq(room().settings.betTime, 1, 'inzettijd 1 s (testmodus)');
   const r0 = room().roundNo;

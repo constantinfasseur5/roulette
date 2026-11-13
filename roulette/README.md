@@ -63,7 +63,7 @@ Alles zit in het **Host-paneel** (alleen zichtbaar voor de Host; de server contr
 - Inzettijd, startfiches, min/max inzet per vak, **herstart-bonus** voor spelers die blut zijn
 - Variant: Europees of Amerikaans (alleen tussen rondes)
 - **Ik speel zelf mee** aan/uit (uit = croupier/toeschouwer)
-- Chat aan/uit, kamer **vergrendelen**
+- Chat aan/uit, kamer **vergrendelen**, **inzetten van anderen tonen** aan/uit (kleine bolletjes in de kleur van de speler op de tafel)
 - Per speler (knop ⚙): fiches geven/afnemen/instellen, resetten, dempen, **Host-rol overdragen**, kicken, verbannen
 - Iedereen resetten naar startsaldo, code/link kopiëren, **kamer sluiten**
 - **Opgeslagen instellingen:** bewaar je kamerinstellingen onder een naam (tot 8, alleen in jouw browser) en laad ze met één klik in een nieuwe kamer. Variant en min/max inzet laden alleen tussen rondes.
@@ -123,7 +123,7 @@ Omgevingsvariabelen (allemaal optioneel): `PORT`, `HOST`, `ALLOWED_ORIGINS` (kom
 npm test      # of: node test/run.js   (Node 22+ voor de netwerktests)
 ```
 
-Dat draait 332 controles: alle inzettypes en uitbetalingen, host-rechten, pauze, reconnect, host-overdracht, spam/te grote berichten, Origin-controle en een echte multiplayer-ronde over WebSockets.
+Dat draait 339 controles: alle inzettypes en uitbetalingen, host-rechten, pauze, reconnect, host-overdracht, spam/te grote berichten, Origin-controle en een echte multiplayer-ronde over WebSockets.
 
 ## Bestanden
 

@@ -494,6 +494,26 @@
       el.style.top = (p.y / S.model.R * 100) + '%';
       layer.append(el);
     }
+    // inzetten van anderen: kleine bolletjes in hun kleur, naast het vak
+    const seen = {};
+    for (const o of S.st.others || []) {
+      const op = S.st.players.find((x) => x.id === o.id);
+      if (!op) continue;
+      for (const [key, amount] of Object.entries(o.bets)) {
+        const p = S.model.pos[key];
+        if (!p) continue;
+        const i = seen[key] = (seen[key] || 0) + 1;
+        let cls = 'chip-other';
+        if (res != null && defs[key]) cls += defs[key].nums.includes(res) ? ' won' : ' lost';
+        const el = h('div', { class: cls, text: short(amount), title: `${op.name}: ${fmt(amount)}` });
+        el.style.setProperty('--oc', op.color || '#888');
+        el.style.left = (p.x / S.model.C * 100) + '%';
+        el.style.top = (p.y / S.model.R * 100) + '%';
+        el.style.marginLeft = `calc(var(--chip) * ${0.3 + (i - 1) * 0.42})`;
+        el.style.marginTop = `calc(var(--chip) * ${0.3})`;
+        layer.append(el);
+      }
+    }
     for (const c of $('#table').querySelectorAll('.cell[data-n]')) c.classList.toggle('win', res != null && Number(c.dataset.n) === res);
   }
 
@@ -783,6 +803,7 @@
       toggle('chat', t('Chat aan')),
       toggle('locked', t('Kamer vergrendeld')),
       toggle('watch', t('Meekijkers toestaan')),
+      toggle('showBets', t('Inzetten van anderen tonen')),
       h('div', { class: 'host-sub', text: t('Instellingen') }),
       h('div', { class: 'num-grid' },
         num('betTime', t('Inzettijd (sec)'), 15, 120), num('startChips', t('Startfiches'), 10, 1000000),
@@ -830,7 +851,7 @@
     hostUI.extend.disabled = !(r.phase === 'betting' && !paused);
     hostUI.pause.textContent = paused ? t('▶ Hervat') : t('⏸ Pauzeer');
     const between = r.phase === 'lobby' || r.phase === 'results';
-    for (const k of ['auto', 'chat', 'locked', 'watch']) hostUI[k].checked = !!s[k];
+    for (const k of ['auto', 'chat', 'locked', 'watch', 'showBets']) hostUI[k].checked = !!s[k];
     hostUI.hostPlays.checked = !!s.hostPlays;
     for (const k of ['betTime', 'startChips', 'minBet', 'maxBet', 'rebuyBonus']) {
       if (document.activeElement !== hostUI[k]) hostUI[k].value = s[k];

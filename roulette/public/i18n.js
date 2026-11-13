@@ -34,6 +34,7 @@
     'Kopiëren is niet gelukt.': 'Copying did not work.',
     '↻ Nieuwe kijk-link': '↻ New watch link',
     'Host-paneel openen': 'Open Host panel',
+    'Inzetten van anderen tonen': 'Show other players\' bets',
     'Host-paneel sluiten': 'Close Host panel',
     'Een nieuwe kijk-link maken? De oude link werkt dan niet meer en alle kijkers worden weggestuurd.': 'Make a new watch link? The old link stops working and all spectators are removed.',
     'Er kijken al genoeg mensen mee (max. {n}).': 'Enough people are already watching (max. {n}).',
@@ -300,7 +301,7 @@
   // Labels in "Host wijzigde: variant: Europees, inzettijd: 20." (server) → Engels
   const SETTING_WORDS = {
     'variant': 'variant', 'inzettijd': 'betting time', 'startfiches': 'starting chips', 'min. inzet': 'min. bet', 'max. inzet': 'max. bet',
-    'herstart-bonus': 'rebuy bonus', 'automatisch': 'automatic', 'host speelt mee': 'host plays', 'vergrendeld': 'locked', 'chat': 'chat', 'meekijkers': 'spectators',
+    'herstart-bonus': 'rebuy bonus', 'automatisch': 'automatic', 'host speelt mee': 'host plays', 'vergrendeld': 'locked', 'chat': 'chat', 'meekijkers': 'spectators', 'inzetten zichtbaar': 'bets visible',
     'aan': 'on', 'uit': 'off', 'Europees': 'European', 'Amerikaans': 'American',
   };
 
