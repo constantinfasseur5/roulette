@@ -792,6 +792,8 @@
     hostUI.extend = btn(t('+10 seconden'), '', () => send({ t: 'extend', sec: 10 }));
     hostUI.pause = btn(t('⏸ Pauzeer'), '', () => send({ t: 'pause', value: !S.st.room.paused }));
 
+    hostUI.banBox = h('div', { class: 'ban-box', hidden: true });
+    hostUI.banKey = '';
     hostUI.head = h('button', { class: 'hp-head', type: 'button', onclick: () => setHostCollapsed(!hostCollapsed()) },
       h('span', { class: 'hp-title', text: t('👑 Host-paneel') }), h('span', { class: 'hp-tri', 'aria-hidden': 'true', text: '▾' }));
     p.replaceChildren(
@@ -811,6 +813,7 @@
         num('rebuyBonus', t('Herstart-bonus (0 = uit)'), 0, 1000000), h('label', null, t('Variant'), sel)),
       h('div', { class: 'host-sub', text: t('Opgeslagen instellingen') }),
       h('div', { class: 'preset-row' }, hostUI.presetSel, hostUI.presetLoad, hostUI.presetSave, hostUI.presetDel),
+      hostUI.banBox,
       h('div', { class: 'host-sub', text: t('Kamer') }),
       h('div', { class: 'host-grid' },
         btn(t('Kopieer code'), '', () => copy(S.me.code, t('Code gekopieerd'))),
@@ -851,6 +854,17 @@
     hostUI.extend.disabled = !(r.phase === 'betting' && !paused);
     hostUI.pause.textContent = paused ? t('▶ Hervat') : t('⏸ Pauzeer');
     const between = r.phase === 'lobby' || r.phase === 'results';
+    const bans = (S.st && S.st.bans) || [];
+    const bk = bans.map((b) => b.id + b.name).join('|');
+    if (hostUI.banKey !== bk) {
+      hostUI.banKey = bk;
+      hostUI.banBox.hidden = !bans.length;
+      hostUI.banBox.replaceChildren(
+        h('div', { class: 'host-sub', text: t('Verbannen spelers') }),
+        ...bans.map((b) => h('div', { class: 'ban-row' },
+          h('span', { class: 'ban-name', text: b.name }),
+          h('button', { class: 'btn small', onclick: () => send({ t: 'unban', id: b.id }) }, t('Ban opheffen')))));
+    }
     for (const k of ['auto', 'chat', 'locked', 'watch', 'showBets']) hostUI[k].checked = !!s[k];
     hostUI.hostPlays.checked = !!s.hostPlays;
     for (const k of ['betTime', 'startChips', 'minBet', 'maxBet', 'rebuyBonus']) {
@@ -911,7 +925,7 @@
         h('button', { class: 'btn small', onclick: act({ t: 'mute', id, value: !p.muted }, true) }, p.muted ? t('Dempen opheffen') : t('Dempen')),
         h('button', { class: 'btn small', onclick: () => { if (confirm(t('{name} Host maken?', { name: p.name }))) { send({ t: 'transfer', id }); close(); } } }, t('👑 Host maken')),
         h('button', { class: 'btn small danger', onclick: () => { if (confirm(t('{name} uit de kamer zetten?', { name: p.name }))) { send({ t: 'kick', id }); close(); } } }, 'Kick'),
-        h('button', { class: 'btn small danger', onclick: () => { if (confirm(t('{name} verbannen?', { name: p.name }))) { send({ t: 'ban', id }); close(); } } }, 'Ban'),
+        h('button', { class: 'btn small danger', onclick: () => { if (confirm(t('{name} verbannen? Ook het IP-adres wordt geblokkeerd.', { name: p.name }))) { send({ t: 'ban', id }); close(); } } }, 'Ban'),
         h('button', { class: 'btn small ghost', onclick: close }, t('Sluiten'))),
     ));
     modal.hidden = false;

@@ -115,7 +115,7 @@ Omgevingsvariabelen (allemaal optioneel): `PORT`, `HOST`, `ALLOWED_ORIGINS` (kom
 - Alle invoer wordt server-side gecontroleerd (bedragen, inzetsleutels, fase, rechten).
 - Bijnamen en chat worden in de browser nooit als HTML getoond (geen XSS). Content-Security-Policy staat aan.
 - WebSockets controleren de Origin, hebben een maximale berichtgrootte (4 KB), rate limiting en een heartbeat.
-- Verbannen werkt op bijnaam + sessie en is dus "best effort": wie een andere bijnaam kiest en een nieuwe sessie start, komt er weer in. Wil je dat niet, vergrendel dan de kamer.
+- Verbannen werkt op bijnaam, sessie **en IP-adres** (per kamer). De Host ziet een lijst "Verbannen spelers" en kan een ban opheffen; die lijst toont geen IP's. Mensen op hetzelfde netwerk delen een IP, dus één ban kan anderen op dat netwerk ook blokkeren (dan: ban opheffen). Lokale adressen (127.0.0.1) worden nooit op IP verbannen. Een VPN of ander netwerk omzeilt een IP-ban; wil je dat niet, vergrendel dan de kamer.
 
 ## Tests
 
@@ -123,7 +123,7 @@ Omgevingsvariabelen (allemaal optioneel): `PORT`, `HOST`, `ALLOWED_ORIGINS` (kom
 npm test      # of: node test/run.js   (Node 22+ voor de netwerktests)
 ```
 
-Dat draait 339 controles: alle inzettypes en uitbetalingen, host-rechten, pauze, reconnect, host-overdracht, spam/te grote berichten, Origin-controle en een echte multiplayer-ronde over WebSockets.
+Dat draait 351 controles: alle inzettypes en uitbetalingen, host-rechten, pauze, reconnect, host-overdracht, spam/te grote berichten, Origin-controle en een echte multiplayer-ronde over WebSockets.
 
 ## Bestanden
 

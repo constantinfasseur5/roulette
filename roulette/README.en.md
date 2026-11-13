@@ -56,7 +56,7 @@ The panel collapses into a small bar with the ▾ triangle and opens again; your
 - Variant: European or American (only between rounds)
 - **I play too** on/off (off = croupier/spectator)
 - Chat on/off, **show other players' bets** on/off (small bubbles in each player's color on the table), **lock** the room, allow spectators, copy/renew the watch link
-- Per player (⚙ button): give/take/set chips, reset, mute, **hand over the Host role**, kick, ban
+- Per player (⚙ button): give/take/set chips, reset, mute, **hand over the Host role**, kick, ban (also by IP) and unban
 - Reset everyone to the starting balance, copy code/link, **close the room**
 - **Saved settings:** save your room settings under a name (up to 8, only in your browser) and load them with one click in a new room. Variant and min/max bet only load between rounds.
 
@@ -79,7 +79,7 @@ If the Host is gone for 60 seconds, the Host role automatically goes to the play
 - Nicknames and chat are never shown as HTML in the browser (no XSS). Content-Security-Policy is on.
 - WebSockets check the Origin, have a maximum message size (4 KB), rate limiting and a heartbeat.
 - The watch link uses its own secret key; spectators never get the room code and cannot do anything except watch.
-- Banning works on nickname + session and is therefore "best effort": someone who picks another nickname and starts a new session gets back in. If you don't want that, lock the room.
+- Banning works on nickname, session **and IP address** (per room). The Host sees a "Banned players" list and can unban; the list shows no IPs. People on the same network share an IP, so one ban can block others on that network (unban them then). Local addresses (127.0.0.1) are never IP-banned. A VPN or another network gets around an IP ban; if you don't want that, lock the room.
 
 ## Tests
 
@@ -87,7 +87,7 @@ If the Host is gone for 60 seconds, the Host role automatically goes to the play
 npm test      # or: node test/run.js
 ```
 
-This runs 339 checks: all bet types and payouts, Host permissions, pause, reconnect, Host handover, spam/oversized messages, Origin check, spectators, achievements and a real multiplayer round over WebSockets.
+This runs 351 checks: all bet types and payouts, Host permissions, pause, reconnect, Host handover, spam/oversized messages, Origin check, spectators, achievements and a real multiplayer round over WebSockets.
 
 ## Files
 

@@ -84,6 +84,8 @@ function genCode() {
 }
 
 const cleanKey = (v) => String(v == null ? '' : v).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 24);
+// Lokale adressen (testen op je eigen computer) worden nooit op IP verbannen, anders zou je alle tabbladen buitensluiten
+const ipBannable = (ip) => !!ip && ip !== '?' && ip !== 'localhost' && !/^(127\.|::1$|::ffff:127\.)/.test(ip);
 const isInt = (v) => typeof v === 'number' && Number.isInteger(v);
 const sumBets = (m) => { let s = 0; for (const a of m.values()) s += a; return s; };
 
@@ -204,7 +206,7 @@ class Game {
     }
 
     // ---- alleen Host ----
-    const hostCmds = ['start', 'closeBets', 'spin', 'forceNext', 'extend', 'settings', 'pause', 'kick', 'ban', 'chips', 'resetPlayer', 'resetAll', 'mute', 'transfer', 'closeRoom', 'newWatchKey'];
+    const hostCmds = ['start', 'closeBets', 'spin', 'forceNext', 'extend', 'settings', 'pause', 'kick', 'ban', 'chips', 'resetPlayer', 'resetAll', 'mute', 'transfer', 'closeRoom', 'newWatchKey', 'unban'];
     if (!hostCmds.includes(msg.t)) return this.err(conn, 'Onbekende actie.');
     if (room.hostId !== player.id) return this.err(conn, 'Alleen de Host mag dit.', 'nothost');
 
@@ -218,6 +220,7 @@ class Game {
       case 'pause': return this.cmdPause(conn, room, !!msg.value);
       case 'kick': return this.cmdKick(conn, room, player, msg, false);
       case 'ban': return this.cmdKick(conn, room, player, msg, true);
+      case 'unban': return this.cmdUnban(conn, room, player, msg);
       case 'chips': return this.cmdChips(conn, room, msg);
       case 'resetPlayer': return this.cmdResetPlayer(conn, room, msg);
       case 'resetAll': return this.cmdResetAll(conn, room);
@@ -291,8 +294,8 @@ class Game {
       forceNext: null, // getal dat de Host voor de volgende draai koos (of null = willekeurig)
       lastResult: null,
       chatLog: [],
-      bannedTokens: new Set(),
-      bannedNames: new Set(),
+      bans: [],              // [{id, name, token, ip}] -- de Host kan ze opheffen
+      banSeq: 0,
       flushTimer: null,
       hostTimer: null,
     };
@@ -328,7 +331,7 @@ class Game {
 
     const name = cleanName(msg.name);
     if (!name) return this.err(conn, 'Kies een bijnaam (1-16 tekens).', 'name');
-    if (room.bannedNames.has(name.toLowerCase()) || (token && room.bannedTokens.has(token))) {
+    if (this.isBanned(room, { name, token, ip: conn.ip })) {
       return this.err(conn, 'Je bent verbannen uit deze kamer.', 'banned');
     }
     if (room.settings.locked) return this.err(conn, 'De kamer is vergrendeld door de Host.', 'locked');
@@ -400,7 +403,7 @@ class Game {
   }
 
   joinWatcher(conn, room, token) {
-    if (token && room.bannedTokens.has(token)) return this.err(conn, 'Je bent verbannen uit deze kamer.', 'banned');
+    if (this.isBanned(room, { token, ip: conn.ip })) return this.err(conn, 'Je bent verbannen uit deze kamer.', 'banned');
     if (!room.settings.watch) return this.err(conn, 'Meekijken staat uit in deze kamer.', 'nowatch');
     // (vergrendeld houdt alleen nieuwe spelers tegen, kijkers mogen wel)
     if (room.watchers.size >= this.o.maxWatchers) return this.err(conn, `Er kijken al genoeg mensen mee (max. ${this.o.maxWatchers}).`, 'full');
@@ -1011,11 +1014,28 @@ class Game {
     this.touch(room, true);
   }
 
+  /** Is deze persoon verbannen? Op bijnaam, sessie-token of IP-adres. */
+  isBanned(room, { name, token, ip }) {
+    const lower = name ? name.toLowerCase() : null;
+    return room.bans.some((b) => (lower && b.name.toLowerCase() === lower) || (token && b.token === token) || (b.ip && ipBannable(ip) && b.ip === ip));
+  }
+
+  cmdUnban(conn, room, host, msg) {
+    const i = room.bans.findIndex((b) => b.id === msg.id);
+    if (i < 0) return this.err(conn, 'Die ban bestaat niet (meer).');
+    const [b] = room.bans.splice(i, 1);
+    this.note(room, `${b.name} is niet meer verbannen.`, 'kick');
+    this.touch(room, true);
+  }
+
   cmdKick(conn, room, host, msg, ban) {
     const t = room.players.get(String(msg.id));
     if (!t) return this.err(conn, 'Speler niet gevonden.');
     if (t.id === host.id) return this.err(conn, 'Je kunt jezelf niet verwijderen.');
-    if (ban) { room.bannedTokens.add(t.token); room.bannedNames.add(t.name.toLowerCase()); }
+    if (ban) {
+      room.bans.push({ id: ++room.banSeq, name: t.name, token: t.token, ip: (t.conn && t.conn.ip) || t.ip || null });
+      if (room.bans.length > 50) room.bans.shift();
+    }
     if (t.conn) {
       this.send(t.conn, { t: 'kicked', ban, msg: ban ? 'Je bent verbannen uit deze kamer.' : 'Je bent uit de kamer gezet door de Host.' });
     }
@@ -1183,6 +1203,7 @@ class Game {
         spin: room.spin ? { result: room.spin.result, variant: room.spin.variant, startedAt: room.spin.startedAt, duration: room.spin.duration } : null,
       },
       players,
+      bans: me.id === room.hostId ? room.bans.map((b) => ({ id: b.id, name: b.name })) : undefined,   // alleen de Host ziet de banlijst (zonder IP's)
       // inzetten van de andere spelers (alleen als de Host dat toestaat)
       others: room.settings.showBets
         ? [...room.players.values()].filter((p) => p.id !== me.id && p.bets.size).map((p) => ({ id: p.id, bets: Object.fromEntries(p.bets) }))

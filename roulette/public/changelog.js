@@ -5,6 +5,23 @@
  */
 window.CHANGELOG = [
   {
+    id: '2026-11-13-ipban',
+    date: '2026-11-13',
+    title: { en: 'IP bans and unban', nl: 'IP-ban en unban' },
+    items: {
+      en: [
+        'A ban now also blocks the IP address, so someone cannot come back with a new nickname. A banned IP cannot join or watch that room.',
+        'Banned someone by mistake? The Host panel now has a "Banned players" list with an Unban button for each one. (Only the Host sees this list, and no IP addresses are shown.)',
+        'Note: people on the same network (home, school) share an IP, so banning one can block the others too. Unban them if that happens.',
+      ],
+      nl: [
+        'Een ban blokkeert nu ook het IP-adres, zodat iemand niet met een nieuwe bijnaam terug kan komen. Een verbannen IP kan niet joinen of meekijken in die kamer.',
+        'Per ongeluk iemand verbannen? Het Host-paneel heeft nu een lijst "Verbannen spelers" met per persoon een knop "Ban opheffen". (Alleen de Host ziet deze lijst, en er worden geen IP-adressen getoond.)',
+        'Let op: mensen op hetzelfde netwerk (thuis, school) delen een IP, dus één speler verbannen kan ook de anderen blokkeren. Hef de ban dan op.',
+      ],
+    },
+  },
+  {
     id: '2026-11-13-bets',
     date: '2026-11-13',
     title: { en: 'See where others bet', nl: 'Zie waarop anderen inzetten' },

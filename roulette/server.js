@@ -108,8 +108,9 @@ const wss = attach(server, {
   maxPayload: 4096,
   allowedOrigins: (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()),
   onConnection(conn, req) {
-    const fwd = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-    conn.ip = fwd || req.socket.remoteAddress || '?';
+    // Achter de proxy van de host staat het echte IP in deze headers (cf-connecting-ip is het betrouwbaarst)
+    const hdr = (k) => String(req.headers[k] || '').split(',')[0].trim();
+    conn.ip = hdr('cf-connecting-ip') || hdr('true-client-ip') || hdr('x-forwarded-for') || req.socket.remoteAddress || '?';
     const n = (perIp.get(conn.ip) || 0) + 1;
     if (n > MAX_CONN_PER_IP) return false;
     perIp.set(conn.ip, n);
