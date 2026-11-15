@@ -422,3 +422,18 @@ body.watching #btn-code, body.watching #btn-link, body.watching #btn-stream { di
 .ban-box { margin-top: 4px; }
 .ban-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 0; }
 .ban-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- inloggen ---------- */
+.auth-box { display: none; margin: 0 0 14px; }
+body.need-login:not(.watch-start) .auth-box { display: block; }
+body.need-login:not(.watch-start) #play-box, body.auth-wait #play-box, body.auth-wait .auth-box, body.auth-wait .user-row { display: none !important; }
+.auth-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.auth-tabs button { flex: 1; padding: 9px 6px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.04); color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; }
+.auth-tabs button.on { background: rgba(214, 178, 94, 0.18); border-color: var(--gold); color: var(--gold-hi); }
+.auth-box .field { margin-bottom: 10px; }
+.auth-box .btn { width: 100%; }
+.auth-box .fine { margin: 10px 0 0; text-align: center; }
+.user-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255, 255, 255, 0.04); font-size: 0.9rem; }
+.user-row b { color: var(--gold-hi); }
+body.watch-start .user-row { display: none; }
+#inp-name[readonly] { opacity: 0.8; cursor: not-allowed; }

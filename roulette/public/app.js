@@ -77,7 +77,7 @@
     ws: null, open: false, joined: false, me: null, st: null, offset: 0,
     chip: 5, chat: [], retry: 0, noReconnect: false, queue: [],
     orient: null, model: null, modelKey: '', spinRound: null, pending: null, shownRound: 0,
-    lastCountSec: -1, stream: false,
+    lastCountSec: -1, stream: false, login: false, user: null, authMode: 'login', authPending: false,
   };
 
   // ------------------------------------------------------------------ verbinding
@@ -92,6 +92,7 @@
     S.ws = ws;
     ws.onopen = () => {
       S.open = true; S.retry = 0;
+      S.authPending = false;
       $('#conn-banner').hidden = true;
       const ses = store.get('sessionStorage', 'roulette.session');
       if (ses && !S.noReconnect) send(ses.key ? { t: 'resume', key: ses.key, token: ses.token } : { t: 'resume', code: ses.code, token: ses.token });
@@ -115,6 +116,21 @@
 
   function onMsg(m) {
     switch (m.t) {
+      case 'config': {
+        S.login = !!m.login;
+        const tok = store.get('localStorage', 'roulette.auth');
+        if (S.login && tok && !S.user) { S.authPending = true; send({ t: 'auth', token: tok }); } else if (S.login && tok && S.user) send({ t: 'auth', token: tok });
+        else authDone();
+        return;
+      }
+      case 'authed':
+        S.user = m.name;
+        if (m.token) store.set('localStorage', 'roulette.auth', m.token);
+        $('#inp-pass').value = '';
+        showStartError('');
+        return authDone();
+      case 'authFailed': store.del('localStorage', 'roulette.auth'); S.user = null; return authDone();
+      case 'loggedout': S.user = null; store.del('localStorage', 'roulette.auth'); return authDone();
       case 'welcome': return onWelcome(m);
       case 'state': return onState(m);
       case 'chat': S.chat.push(m); if (S.chat.length > 80) S.chat.shift(); renderChat(); if (!m.sys && S.me && m.id !== S.me.id) Sound.ping(); return;
@@ -1155,6 +1171,46 @@
     $('#watch-note').textContent = watchKey ? t('Je bent uitgenodigd om mee te kijken. Je hebt geen bijnaam nodig en kunt niets inzetten.') : '';
   }
 
+  // ------------------------------------------------------------------ inloggen (gebruikersnaam + wachtwoord)
+  function authDone() {
+    S.authPending = false;
+    clearTimeout(S.authWait);
+    document.body.classList.remove('auth-wait');
+    renderAuth();
+  }
+  function renderAuth() {
+    const need = S.login && !S.user;
+    document.body.classList.toggle('need-login', need);
+    const reg = S.authMode === 'register';
+    $('#tab-login').classList.toggle('on', !reg);
+    $('#tab-register').classList.toggle('on', reg);
+    $('#btn-auth').textContent = reg ? t('Account maken') : t('Inloggen');
+    $('#inp-pass').autocomplete = reg ? 'new-password' : 'current-password';
+    $('#auth-hint').textContent = reg
+      ? t('Gebruikersnaam: 3-16 letters, cijfers of _. Wachtwoord: minstens 6 tekens. Je gebruikersnaam is ook je naam in het spel. Een vergeten wachtwoord kan niet hersteld worden.')
+      : t('Log in om een kamer te maken of mee te spelen. Kijken via een kijk-link kan zonder account.');
+    const inn = S.login && !!S.user;
+    $('#user-row').hidden = !inn;
+    $('#user-name').textContent = S.user || '';
+    const nm = $('#inp-name');
+    nm.readOnly = inn;
+    if (inn) nm.value = S.user;
+  }
+  function submitAuth() {
+    const username = $('#inp-user').value.trim(), password = $('#inp-pass').value;
+    showStartError('');
+    if (!username || !password) return showStartError(t('Vul je gebruikersnaam en wachtwoord in.'));
+    Sound.init();
+    request({ t: S.authMode, username, password });
+  }
+  $('#btn-auth').addEventListener('click', submitAuth);
+  for (const id of ['#inp-user', '#inp-pass']) $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(); });
+  $('#tab-login').addEventListener('click', () => { S.authMode = 'login'; showStartError(''); renderAuth(); });
+  $('#tab-register').addEventListener('click', () => { S.authMode = 'register'; showStartError(''); renderAuth(); });
+  $('#btn-logout').addEventListener('click', () => { send({ t: 'logout', token: store.get('localStorage', 'roulette.auth') }); store.del('localStorage', 'roulette.auth'); S.user = null; $('#inp-name').value = ''; renderAuth(); });
+  // als de server niets laat weten (oude versie/offline) laten we het scherm toch zien
+  S.authWait = setTimeout(authDone, 4000);
+
   // ------------------------------------------------------------------ streamer-modus (kamercode verbergen)
   function applyStream() {
     const on = !!S.stream;
@@ -1270,6 +1326,7 @@
     renderAvatarBtn();
     renderStartMode();
     applyStream();
+    renderAuth();
     if (S.joined && S.st) {
       S.modelKey = '';          // tafel opnieuw tekenen met vertaalde labels
       hostUI.built = false;     // host-paneel opnieuw opbouwen

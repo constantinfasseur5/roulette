@@ -18,8 +18,8 @@ function get(p) {
   });
 }
 
-function client() {
-  const ws = new WebSocket(`ws://127.0.0.1:${PORT}/ws`);
+function client(port = PORT) {
+  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
   const c = { ws, msgs: [], closeCode: null };
   ws.onmessage = (e) => c.msgs.push(JSON.parse(e.data));
   ws.onclose = (e) => { c.closeCode = e.code; };
@@ -37,7 +37,7 @@ async function run() {
   if (typeof WebSocket === 'undefined') { console.log('\n(netwerktest overgeslagen: Node 22+ nodig voor de ingebouwde WebSocket-client)'); return; }
 
   const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
-    env: Object.assign({}, process.env, { PORT: String(PORT), HOST: '127.0.0.1', SPIN_MS: '300', SETTLE_MS: '100', ROULETTE_TEST_RESULTS: '17' }),
+    env: Object.assign({}, process.env, { PORT: String(PORT), HOST: '127.0.0.1', SPIN_MS: '300', SETTLE_MS: '100', ROULETTE_TEST_RESULTS: '17', REQUIRE_LOGIN: '0' }),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';
@@ -155,6 +155,47 @@ async function run() {
     const st2 = await a2.wait((m) => m.t === 'state');
     ok(st2 && st2.me.host, 'Host is nog steeds Host na terugkeren');
     a2.ws.close(); b.ws.close();
+  } finally {
+    srv.kill('SIGTERM');
+    await sleep(200);
+  }
+  await runLogin();
+}
+
+// Tweede server, nu met verplicht inloggen (zoals online): echte accounts over een echte WebSocket.
+async function runLogin() {
+  const os = require('os'), fs = require('fs');
+  const port = PORT + 100;
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rr-')), 'accounts.json');
+  const srv = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], {
+    env: Object.assign({}, process.env, { PORT: String(port), HOST: '127.0.0.1', ACCOUNTS_FILE: file, UPSTASH_REDIS_REST_URL: '', UPSTASH_REDIS_REST_TOKEN: '' }),
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let log = '';
+  srv.stdout.on('data', (d) => { log += d; });
+  srv.stderr.on('data', (d) => { log += d; });
+  for (let i = 0; i < 50 && !/draait op/.test(log); i++) await sleep(100);
+  try {
+    group('Inloggen over een echte WebSocket');
+    ok(/Inloggen verplicht \(accounts: file\)/.test(log), 'server meldt: inloggen verplicht, opslag = bestand');
+    const a = client(port); await a.ready;
+    const cfg = await a.wait((m) => m.t === 'config');
+    ok(cfg && cfg.login === true, 'server stuurt bij verbinden: inloggen is verplicht');
+    a.send({ t: 'create', name: 'Gast' });
+    ok(await a.wait((m) => m.t === 'error' && m.code === 'login'), 'kamer maken zonder inloggen kan niet');
+    a.send({ t: 'register', username: 'Netto', password: 'wachtwoord1' });
+    const au = await a.wait((m) => m.t === 'authed');
+    ok(au && au.name === 'Netto' && au.token.length === 64, 'registreren over WebSocket');
+    a.send({ t: 'create' });
+    const w = await a.wait((m) => m.t === 'welcome');
+    ok(w && w.name === 'Netto', 'kamer maken als Netto');
+    await sleep(400);
+    ok(fs.existsSync(file) && !fs.readFileSync(file, 'utf8').includes('wachtwoord1'), 'accountbestand bestaat en bevat het wachtwoord niet');
+    a.ws.close();
+    const b = client(port); await b.ready;
+    b.send({ t: 'auth', token: au.token });
+    ok(await b.wait((m) => m.t === 'authed' && m.name === 'Netto'), 'bewaarde sessiesleutel werkt op een nieuwe verbinding');
+    b.ws.close();
   } finally {
     srv.kill('SIGTERM');
     await sleep(200);

@@ -11,14 +11,22 @@ Het project heeft **geen externe pakketten** nodig (geen `npm install`). Alleen 
 node server.js        # of: npm start
 ```
 
-Open daarna <http://localhost:3000>.
+Open daarna <http://localhost:3000>. Wil je lokaal testen zonder inloggen? Start dan met `REQUIRE_LOGIN=0 node server.js`.
 
-1. Vul een bijnaam in en klik **Maak kamer**. Jij bent nu de Host.
-2. Anderen openen dezelfde site, vullen bijnaam + de 5-letterige **kamercode** in (of openen je **link**, dan staat de code al ingevuld) en klikken **Join**.
-3. Als Host klik je in het Host-paneel op **Start ronde**. Iedereen zet fiches in op de tafel; daarna draait het wiel.
+1. **Maak een account** (gebruikersnaam + wachtwoord) of log in. Zonder account kun je niet spelen of een kamer maken; meekijken via een kijk-link kan wel zonder account.
+2. Klik **Maak kamer**. Jij bent nu de Host (je bijnaam is je gebruikersnaam).
+3. Anderen openen dezelfde site, loggen in, vullen de 5-letterige **kamercode** in (of openen je **link**, dan staat de code al ingevuld) en klikken **Join**.
+4. Als Host klik je in het Host-paneel op **Start ronde**. Iedereen zet fiches in op de tafel; daarna draait het wiel.
 
 ### Testen met meerdere tabbladen
 Open meerdere tabbladen op `http://localhost:3000`. Elk tabblad is een eigen speler (de sessie staat per tabblad, dus tabbladen komen elkaar niet in de weg). Een refresh in hetzelfde tabblad brengt je terug met je saldo. Sluit je een tabblad en open je een nieuw, dan verschijnt op het startscherm een knop **"Terug naar kamer …"**.
+
+### Inloggen (accounts)
+- Iedereen die **speelt of een kamer host** moet ingelogd zijn met een **gebruikersnaam + wachtwoord** (3-16 tekens: letters, cijfers, _). **Kijkers** met een kijk-link hebben geen account nodig.
+- Het account is alleen je **identiteit**: je bijnaam in de kamer is vast je gebruikersnaam (niemand kan jouw naam gebruiken) en een ban hoort bij je account. Fiches en statistieken worden niet bij het account bewaard.
+- Je blijft 30 dagen ingelogd in deze browser (knop **Uitloggen** op het startscherm).
+- Wachtwoord vergeten? Dat kan nog niet worden hersteld (er is geen e-mail gekoppeld); maak dan een nieuw account.
+- **Opslag:** accounts worden bewaard in een gratis **Upstash Redis**-database (stel `UPSTASH_REDIS_REST_URL` en `UPSTASH_REDIS_REST_TOKEN` in). Zonder die twee variabelen valt de server terug op een bestand (`data/accounts.json`); op een host met tijdelijk bestandssysteem, zoals de gratis Render, verdwijnen accounts dan bij elke herstart. De server meldt dit bij het opstarten.
 
 ### Taal
 Bovenin (en op het startscherm) staat een **EN | NL**-knop. Standaard is het Engels; de keuze wordt onthouden. Vertalingen staan in `public/i18n.js`; de server blijft Nederlands sturen en de website vertaalt die berichten.
@@ -105,7 +113,9 @@ De app is één Node-proces met WebSockets. Kies een host die WebSockets onderst
 - Gebruik HTTPS: de client schakelt dan zelf over op `wss://`.
 - Gezondheidscontrole: `/health`
 
-Omgevingsvariabelen (allemaal optioneel): `PORT`, `HOST`, `ALLOWED_ORIGINS` (komma-gescheiden, alleen nodig als de pagina vanaf een andere domeinnaam dan de server wordt geladen).
+Omgevingsvariabelen (allemaal optioneel): `PORT`, `HOST`, `ALLOWED_ORIGINS` (komma-gescheiden, alleen nodig als de pagina vanaf een andere domeinnaam dan de server wordt geladen), `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (opslag voor accounts, aanbevolen), `ACCOUNTS_FILE` (ander pad voor het accountbestand) en `REQUIRE_LOGIN=0` (inloggen uitzetten, bv. voor lokaal testen).
+
+**Accounts op Render:** maak gratis een database op <https://upstash.com> (Redis), kopieer de *REST URL* en *REST TOKEN* en zet ze bij Render onder *Environment* als `UPSTASH_REDIS_REST_URL` en `UPSTASH_REDIS_REST_TOKEN`. Zonder dit verdwijnen accounts bij elke herstart.
 
 **Let op:** kamers staan in het geheugen. Bij een herstart van de server zijn ze weg, en draai maar **één instantie** (geen load balancer met meerdere kopieën).
 
@@ -115,6 +125,7 @@ Omgevingsvariabelen (allemaal optioneel): `PORT`, `HOST`, `ALLOWED_ORIGINS` (kom
 - Alle invoer wordt server-side gecontroleerd (bedragen, inzetsleutels, fase, rechten).
 - Bijnamen en chat worden in de browser nooit als HTML getoond (geen XSS). Content-Security-Policy staat aan.
 - WebSockets controleren de Origin, hebben een maximale berichtgrootte (4 KB), rate limiting en een heartbeat.
+- Wachtwoorden worden nooit bewaard: alleen een **scrypt-hash** met eigen salt. Een login geeft een lange willekeurige sessiesleutel (30 dagen); de server bewaart alleen de SHA-256 ervan. Pogingen om in te loggen of accounts te maken worden per IP en per account afgeremmd.
 - Verbannen werkt op bijnaam, sessie **en IP-adres** (per kamer). De Host ziet een lijst "Verbannen spelers" en kan een ban opheffen; die lijst toont geen IP's. Mensen op hetzelfde netwerk delen een IP, dus één ban kan anderen op dat netwerk ook blokkeren (dan: ban opheffen). Lokale adressen (127.0.0.1) worden nooit op IP verbannen. Een VPN of ander netwerk omzeilt een IP-ban; wil je dat niet, vergrendel dan de kamer.
 
 ## Tests
@@ -123,7 +134,7 @@ Omgevingsvariabelen (allemaal optioneel): `PORT`, `HOST`, `ALLOWED_ORIGINS` (kom
 npm test      # of: node test/run.js   (Node 22+ voor de netwerktests)
 ```
 
-Dat draait 351 controles: alle inzettypes en uitbetalingen, host-rechten, pauze, reconnect, host-overdracht, spam/te grote berichten, Origin-controle en een echte multiplayer-ronde over WebSockets.
+Dat draait 396 controles: alle inzettypes en uitbetalingen, host-rechten, pauze, reconnect, host-overdracht, spam/te grote berichten, Origin-controle, kijkers, prestaties, bans, accounts/inloggen en een echte multiplayer-ronde over WebSockets.
 
 ## Bestanden
 
@@ -131,6 +142,7 @@ Dat draait 351 controles: alle inzettypes en uitbetalingen, host-rechten, pauze,
 server.js          HTTP-server voor de site + WebSocket-endpoint (/ws)
 lib/game.js        alle spellogica: kamers, rondes, host-acties, uitbetalingen
 lib/ws.js          eigen kleine WebSocket-server (RFC 6455), geen pakketten
+lib/accounts.js    accounts: wachtwoord-hash, sessies, opslag (Upstash of bestand)
 public/rules.js    inzetten + uitbetalingen (gedeeld door server en browser)
 public/index.html  pagina's
 public/style.css   casino-thema
@@ -142,4 +154,4 @@ test/              testsuite
 
 ## Ideeën voor later
 
-Accounts, extra inzettypes (bv. buurnummers/voisins, trio's), database zodat kamers een herstart overleven.
+Extra inzettypes (bv. buurnummers/voisins, trio's), database zodat kamers een herstart overleven, wachtwoord herstellen.

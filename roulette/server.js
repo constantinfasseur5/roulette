@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const { attach } = require('./lib/ws');
 const { Game } = require('./lib/game');
+const { Accounts, makeStore } = require('./lib/accounts');
 
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -36,6 +37,20 @@ if (process.env.ROULETTE_TEST_RESULTS) {
   const queue = process.env.ROULETTE_TEST_RESULTS.split(',').map((s) => Number(s.trim())).filter(Number.isInteger);
   const original = require('./lib/game').DEFAULTS.nextResult;
   gameOpts.nextResult = (variant) => (queue.length ? queue.shift() : original(variant));
+}
+
+// Inloggen (gebruikersnaam + wachtwoord) is standaard verplicht voor spelers en Hosts. REQUIRE_LOGIN=0 zet het uit (handig om lokaal te testen).
+const requireLogin = process.env.REQUIRE_LOGIN !== '0';
+let storeKind = 'none';
+if (requireLogin) {
+  const made = makeStore(process.env, path.join(__dirname, 'data'));
+  storeKind = made.kind;
+  gameOpts.accounts = new Accounts(made.store);
+  gameOpts.requireLogin = true;
+  if (made.kind === 'file' && process.env.RENDER) {
+    console.warn('LET OP: accounts worden in een bestand bewaard dat op Render bij elke herstart verdwijnt. Stel UPSTASH_REDIS_REST_URL en UPSTASH_REDIS_REST_TOKEN in.');
+  }
+  console.log(`Inloggen verplicht (accounts: ${made.kind}).`);
 }
 
 const game = new Game(gameOpts);
@@ -111,6 +126,7 @@ const wss = attach(server, {
     // Achter de proxy van de host staat het echte IP in deze headers (cf-connecting-ip is het betrouwbaarst)
     const hdr = (k) => String(req.headers[k] || '').split(',')[0].trim();
     conn.ip = hdr('cf-connecting-ip') || hdr('true-client-ip') || hdr('x-forwarded-for') || req.socket.remoteAddress || '?';
+    game.send(conn, { t: 'config', login: requireLogin, store: storeKind });
     const n = (perIp.get(conn.ip) || 0) + 1;
     if (n > MAX_CONN_PER_IP) return false;
     perIp.set(conn.ip, n);

@@ -860,6 +860,151 @@ async function run() {
   send(L2, { t: 'leave' });
   send(H, { t: 'unban', id: H.state.bans ? room().bans[0].id : 0 });
 
+  group('Accounts en verplicht inloggen');
+  {
+    const { Accounts, MemoryStore, FileStore, UpstashStore } = require('../lib/accounts');
+    const store = new MemoryStore();
+    const accounts = new Accounts(store);
+    const g2 = new Game({ spinMs: 40, settleMs: 20, closedDelayMs: 20, resultPauseMs: 60, reconnectMs: 500, hostGraceMs: 120, emptyRoomMs: 60, betTimeMin: 1, accounts, requireLogin: true });
+    const au = async (c, m, wait = 400) => { g2.handle(c, JSON.stringify(m)); await sleep(wait); };
+    const ipc = (n) => { const c = new Fake(n); c.ip = '20.0.' + (Fake.n % 250) + '.1'; return c; };
+
+    const X = ipc('x');
+    await au(X, { t: 'create', name: 'Hacker' }, 50);
+    eq(X.lastErr().code, 'login', 'kamer maken zonder inloggen: geweigerd');
+
+    await au(X, { t: 'register', username: 'ab', password: 'geheim123' }, 50);
+    eq(X.lastErr().code, 'username', 'te korte gebruikersnaam');
+    await au(X, { t: 'register', username: 'Admin', password: 'geheim123' }, 50);
+    eq(X.lastErr().code, 'username', 'gereserveerde naam (admin)');
+    await au(X, { t: 'register', username: 'Kijker3', password: 'geheim123' }, 50);
+    eq(X.lastErr().code, 'username', 'gereserveerde naam (Kijker3)');
+    await au(X, { t: 'register', username: 'Bad Name!', password: 'geheim123' }, 50);
+    eq(X.lastErr().code, 'username', 'spaties/tekens niet toegestaan');
+    await au(X, { t: 'register', username: 'Hanna_1', password: '123' }, 50);
+    eq(X.lastErr().code, 'password', 'te kort wachtwoord');
+    await au(X, { t: 'register', username: 'Hanna_1', password: 'geheim123' });
+    const ok1 = X.last('authed');
+    ok(ok1 && ok1.name === 'Hanna_1' && /^[0-9a-f]{64}$/.test(ok1.token), 'registreren geeft een sessiesleutel van 64 hex-tekens');
+    const dump = JSON.stringify([...store.m]);
+    ok(!dump.includes('geheim123') && dump.includes('"hash"') && dump.includes('"salt"'), 'wachtwoord staat niet in de opslag, alleen hash + salt');
+    ok(!dump.includes(ok1.token), 'de sessiesleutel zelf staat niet in de opslag (alleen de hash ervan)');
+
+    const Y = ipc('y');
+    await au(Y, { t: 'register', username: 'hanna_1', password: 'ietsanders' });
+    eq(Y.lastErr().code, 'taken', 'gebruikersnaam bestaat al (hoofdletterongevoelig)');
+
+    await au(X, { t: 'create', name: 'Hacker' }, 80);
+    ok(X.last('welcome') && X.last('welcome').name === 'Hanna_1', 'na inloggen is je naam de accountnaam (niet de ingestuurde bijnaam)');
+    await au(X, { t: 'login', username: 'Hanna_1', password: 'geheim123' }, 50);
+    ok(/Verlaat eerst/.test(X.lastErr().msg), 'inloggen midden in een kamer kan niet');
+    const code2 = X.code;
+    const NoLogin = ipc('nl');
+    await au(NoLogin, { t: 'join', code: code2, name: 'Hacker' }, 50);
+    eq(NoLogin.lastErr().code, 'login', 'joinen zonder inloggen: geweigerd');
+
+    const Z = ipc('z');
+    await au(Z, { t: 'login', username: 'hanna_1', password: 'fout' });
+    eq(Z.lastErr().code, 'badlogin', 'fout wachtwoord');
+    await au(Z, { t: 'login', username: 'bestaatniet', password: 'geheim123' });
+    eq(Z.lastErr().code, 'badlogin', 'onbekende gebruiker geeft dezelfde melding');
+    await au(Z, { t: 'login', username: 'HANNA_1', password: 'geheim123' });
+    const zl = Z.last('authed');
+    ok(zl && zl.name === 'Hanna_1', 'inloggen (hoofdletterongevoelig) werkt');
+    await au(Z, { t: 'join', code: code2, name: 'Iets anders' }, 80);
+    eq(Z.lastErr().code, 'name', 'zelfde account in dezelfde kamer: naam al in gebruik');
+
+    const V = ipc('v');
+    await au(V, { t: 'auth', token: 'x'.repeat(64) }, 80);
+    ok(V.last('authFailed') && !V.last('authed'), 'verkeerde sessiesleutel: authFailed');
+    await au(V, { t: 'auth', token: zl.token }, 80);
+    ok(V.last('authed') && V.last('authed').name === 'Hanna_1', 'bewaarde sessiesleutel werkt (blijft ingelogd)');
+    await au(V, { t: 'logout', token: zl.token }, 80);
+    ok(V.last('loggedout'), 'uitloggen');
+    await au(V, { t: 'create' }, 50);
+    eq(V.lastErr().code, 'login', 'na uitloggen kun je geen kamer meer maken');
+    const V2 = ipc('v2');
+    await au(V2, { t: 'auth', token: zl.token }, 80);
+    ok(V2.last('authFailed'), 'uitgelogde sessiesleutel werkt niet meer');
+
+    // kijkers hoeven niet in te loggen
+    const Kx = ipc('kijk'); const key2 = [...g2.watchKeys.keys()][0];
+    await au(Kx, { t: 'join', watchKey: key2 }, 80);
+    ok(Kx.last('welcome') && Kx.last('welcome').watcher === true, 'kijken kan zonder account');
+
+    // ban werkt op accountnaam
+    await au(Z, { t: 'logout', token: zl.token }, 50);
+    const P2 = ipc('p2');
+    await au(P2, { t: 'register', username: 'Pieter', password: 'geheim456' });
+    await au(P2, { t: 'join', code: code2 }, 80);
+    ok(P2.last('welcome'), 'tweede account joint');
+    g2.handle(X, JSON.stringify({ t: 'ban', id: P2.id })); await sleep(80);
+    const P3 = ipc('p3');
+    await au(P3, { t: 'login', username: 'pieter', password: 'geheim456' });
+    await au(P3, { t: 'join', code: code2 }, 80);
+    eq(P3.lastErr().code, 'banned', 'verbannen account kan niet terug (ook niet vanaf een ander adres)');
+
+    // te veel foute pogingen: tijdelijk geblokkeerd, ook met het juiste wachtwoord
+    const T = ipc('t');
+    for (let i = 0; i < 6; i++) await au(T, { t: 'login', username: 'Pieter', password: 'fout' + i }, 120);
+    await au(T, { t: 'login', username: 'Pieter', password: 'geheim456' }, 120);
+    eq(T.lastErr().code, 'throttle', 'na 6 foute pogingen: geblokkeerd (ook met juist wachtwoord)');
+    // registraties per adres beperkt
+    const R = ipc('r');
+    for (let i = 0; i < 8; i++) await au(R, { t: 'register', username: 'Massa' + i, password: 'geheim123' }, 120);
+    await au(R, { t: 'register', username: 'Massa9', password: 'geheim123' }, 120);
+    eq(R.lastErr().code, 'throttle', 'maximaal 8 nieuwe accounts per uur per adres');
+    // dubbel tegelijk versturen
+    const D = ipc('d');
+    g2.handle(D, JSON.stringify({ t: 'login', username: 'Pieter', password: 'geheim456' }));
+    g2.handle(D, JSON.stringify({ t: 'login', username: 'Pieter', password: 'geheim456' }));
+    await sleep(400);
+    ok(D.errs().some((m) => /geduld/i.test(m)), 'tweede login terwijl de eerste nog loopt wordt afgehouden');
+
+    // zonder accounts-module is inloggen uit
+    const g3 = new Game({});
+    const N = ipc('n'); g3.handle(N, JSON.stringify({ t: 'login', username: 'a', password: 'b' }));
+    eq(N.lastErr().code, 'noauth', 'zonder accounts-module: "inloggen staat uit"');
+    g3.shutdown && g3.shutdown();
+
+    // opslag: bestand
+    const os = require('os'), fsx = require('fs'), pathx = require('path');
+    const file = pathx.join(fsx.mkdtempSync(pathx.join(os.tmpdir(), 'acct-')), 'sub', 'accounts.json');
+    const fs1 = new FileStore(file); const a1 = new Accounts(fs1);
+    const rr = await a1.register('1.1.1.1', 'Filo', 'geheim123');
+    fs1.flush();
+    const a2 = new Accounts(new FileStore(file));
+    ok(rr.ok && (await a2.login('2.2.2.2', 'filo', 'geheim123')).ok, 'bestandsopslag: account overleeft een herstart');
+    ok((await a2.check(rr.token)) === 'Filo', 'bestandsopslag: sessiesleutel overleeft een herstart');
+    ok((fsx.statSync(file).mode & 0o077) === 0, 'bestand is alleen voor de eigenaar leesbaar');
+
+    // opslag: Upstash (nagebootste REST-server)
+    const db = new Map(); const calls = [];
+    const realFetch = global.fetch;
+    global.fetch = async (url, init) => {
+      const cmd = JSON.parse(init.body); calls.push({ url, auth: init.headers.Authorization, cmd });
+      const [op, k, v, ...rest] = cmd;
+      let result = null;
+      if (op === 'GET') result = db.has(k) ? db.get(k) : null;
+      else if (op === 'SET') { if (rest.includes('NX') && db.has(k)) result = null; else { db.set(k, v); result = 'OK'; } }
+      else if (op === 'DEL') { result = db.delete(k) ? 1 : 0; }
+      return { ok: true, status: 200, json: async () => ({ result }) };
+    };
+    try {
+      const a3 = new Accounts(new UpstashStore('https://demo.upstash.io/', 'SECRET'));
+      const u1 = await a3.register('3.3.3.3', 'Upsie', 'geheim123');
+      const u2 = await a3.register('3.3.3.4', 'upsie', 'geheim123');
+      ok(u1.ok && !u2.ok && u2.code === 'taken', 'Upstash: registreren gebruikt SET NX (geen dubbele namen)');
+      ok((await a3.login('3.3.3.5', 'UPSIE', 'geheim123')).ok && (await a3.check(u1.token)) === 'Upsie', 'Upstash: inloggen en sessie controleren');
+      ok(calls.every((c) => c.url === 'https://demo.upstash.io' && c.auth === 'Bearer SECRET'), 'Upstash: juiste URL en Bearer-token');
+      ok(calls.some((c) => c.cmd[0] === 'SET' && c.cmd.includes('EX')), 'Upstash: sessies krijgen een verloopdatum (EX)');
+      ok(![...db.values()].some((v) => String(v).includes('geheim123')), 'Upstash: wachtwoord staat niet in de opslag');
+      global.fetch = async () => { throw new Error('netwerk weg'); };
+      const bad = await a3.login('3.3.3.6', 'Upsie', 'geheim123');
+      ok(!bad.ok && bad.code === 'storage', 'Upstash onbereikbaar: nette foutmelding, geen crash');
+    } finally { global.fetch = realFetch; }
+  }
+
   group('Kamer sluiten en opruimen');
   const pl = [...room().players.values()].filter((p) => p.conn);
   const conns = pl.map((p) => p.conn);

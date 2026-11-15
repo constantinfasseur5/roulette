@@ -7,12 +7,19 @@ Play roulette with friends: one person creates a room and shares the code or lin
 
 Want to try the site? Go to **Roulette With Friends**: <https://roulettewithfriends.onrender.com/>
 
-1. Enter a nickname and click **Create room**. You are now the Host.
-2. Others open the same site, enter a nickname + the 5-character **room code** (or open your **link**, which fills in the code) and click **Join**.
-3. As Host, click **Start round** in the Host panel. Everyone places chips on the table; then the wheel spins.
+1. **Create an account** (username + password) or log in. You need an account to play or create a room; watching with a watch link works without one.
+2. Click **Create room**. You are now the Host (your nickname is your username).
+3. Others open the same site, log in, enter the 5-character **room code** (or open your **link**, which fills in the code) and click **Join**.
+4. As Host, click **Start round** in the Host panel. Everyone places chips on the table; then the wheel spins.
 
 ### Testing with multiple tabs
 Open the site in several tabs. Each tab is its own player (the session is stored per tab, so tabs don't interfere). Refreshing a tab brings you back with your balance. If you close a tab and open a new one, the start screen shows a **"Back to room …"** button.
+
+### Logging in (accounts)
+- Everyone who **plays or hosts** must be logged in with a **username + password** (3-16 characters: letters, digits, _). **Spectators** with a watch link need no account.
+- An account is your **identity** only: your nickname in a room is always your username (nobody else can use your name) and a ban is tied to your account. Chips and statistics are not stored with the account.
+- You stay logged in for 30 days in this browser (**Log out** button on the start screen).
+- Forgot your password? It cannot be recovered yet (no e-mail is linked); create a new account instead.
 
 ### Language
 There is an **EN | NL** button at the top (and on the start screen). English is the default; your choice is remembered. Translations live in `public/i18n.js`; the server keeps sending Dutch and the website translates those messages.
@@ -79,6 +86,7 @@ If the Host is gone for 60 seconds, the Host role automatically goes to the play
 - Nicknames and chat are never shown as HTML in the browser (no XSS). Content-Security-Policy is on.
 - WebSockets check the Origin, have a maximum message size (4 KB), rate limiting and a heartbeat.
 - The watch link uses its own secret key; spectators never get the room code and cannot do anything except watch.
+- Passwords are never stored, only a **scrypt hash** with its own salt. A login gives a long random session key (30 days); the server only stores its SHA-256. Login attempts and account creation are throttled per IP and per account.
 - Banning works on nickname, session **and IP address** (per room). The Host sees a "Banned players" list and can unban; the list shows no IPs. People on the same network share an IP, so one ban can block others on that network (unban them then). Local addresses (127.0.0.1) are never IP-banned. A VPN or another network gets around an IP ban; if you don't want that, lock the room.
 
 ## Tests
@@ -87,7 +95,7 @@ If the Host is gone for 60 seconds, the Host role automatically goes to the play
 npm test      # or: node test/run.js
 ```
 
-This runs 351 checks: all bet types and payouts, Host permissions, pause, reconnect, Host handover, spam/oversized messages, Origin check, spectators, achievements and a real multiplayer round over WebSockets.
+This runs 396 checks: all bet types and payouts, Host permissions, pause, reconnect, Host handover, spam/oversized messages, Origin check, spectators, achievements, bans, accounts/login and a real multiplayer round over WebSockets.
 
 ## Files
 
@@ -95,6 +103,7 @@ This runs 351 checks: all bet types and payouts, Host permissions, pause, reconn
 server.js          HTTP server for the site + WebSocket endpoint (/ws)
 lib/game.js        all game logic: rooms, rounds, Host actions, payouts
 lib/ws.js          own small WebSocket server (RFC 6455), no packages
+lib/accounts.js    accounts: password hashing, sessions, storage
 public/rules.js    bets + payouts (shared by server and browser)
 public/index.html  pages
 public/style.css   casino theme
@@ -106,4 +115,4 @@ test/              test suite
 
 ## Ideas for later
 
-Accounts, extra bet types (e.g. neighbors/voisins, trio), a database so rooms survive a restart.
+Extra bet types (e.g. neighbors/voisins, trio), a database so rooms survive a restart, password recovery.

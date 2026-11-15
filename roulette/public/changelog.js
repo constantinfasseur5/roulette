@@ -5,6 +5,25 @@
  */
 window.CHANGELOG = [
   {
+    id: '2026-11-15-login',
+    date: '2026-11-15',
+    title: { en: 'Accounts: log in to play', nl: 'Accounts: inloggen om te spelen' },
+    items: {
+      en: [
+        'You now need an account to create or join a room. Create one with a username and password (username: 3-16 letters, digits or _, password: at least 6 characters). You stay logged in on this device until you log out.',
+        'Your username is your name in the game and cannot be changed by typing something else. Nobody else can use your name, and a ban now sticks to the account.',
+        'Watching with a watch link still works without an account.',
+        'Passwords are never stored, only a scrambled version (hash). A forgotten password cannot be recovered yet, so remember it.',
+      ],
+      nl: [
+        'Je hebt nu een account nodig om een kamer te maken of mee te doen. Maak er een met een gebruikersnaam en wachtwoord (gebruikersnaam: 3-16 letters, cijfers of _, wachtwoord: minstens 6 tekens). Je blijft op dit apparaat ingelogd tot je uitlogt.',
+        'Je gebruikersnaam is je naam in het spel en kun je niet meer veranderen door iets anders te typen. Niemand anders kan jouw naam gebruiken, en een ban blijft nu aan het account hangen.',
+        'Meekijken met een kijk-link kan nog steeds zonder account.',
+        'Wachtwoorden worden nooit bewaard, alleen een versleutelde versie (hash). Een vergeten wachtwoord kan nog niet hersteld worden, dus onthoud het.',
+      ],
+    },
+  },
+  {
     id: '2026-11-13-ipban',
     date: '2026-11-13',
     title: { en: 'IP bans and unban', nl: 'IP-ban en unban' },

@@ -180,6 +180,7 @@ class Game {
     }
 
     switch (msg.t) {
+      case 'register': case 'login': case 'auth': case 'logout': return this.authMsg(conn, msg);
       case 'create': return this.create(conn, msg);
       case 'join': return this.join(conn, msg);
       case 'resume': return this.resume(conn, msg);
@@ -264,11 +265,44 @@ class Game {
     return p;
   }
 
+  /** Naam van de speler: bij verplicht inloggen is dat de accountnaam, anders de gekozen bijnaam. */
+  nameFor(conn, msg) {
+    if (this.o.requireLogin) return conn.user ? cleanName(conn.user) : '';
+    return cleanName(msg.name);
+  }
+
+  /** register / login / auth (bewaarde sessiesleutel) / logout */
+  async authMsg(conn, msg) {
+    const A = this.o.accounts;
+    if (!A) return this.err(conn, 'Inloggen staat uit.', 'noauth');
+    if (conn.authBusy) return this.err(conn, 'Even geduld...', 'busy');
+    if (conn.ctx && msg.t !== 'auth') return this.err(conn, 'Verlaat eerst de kamer.');
+    conn.authBusy = true;
+    try {
+      const ip = conn.ip || '?';
+      if (msg.t === 'logout') {
+        await A.logout(msg.token);
+        conn.user = null;
+        return this.send(conn, { t: 'loggedout' });
+      }
+      if (msg.t === 'auth') {
+        const name = await A.check(msg.token);
+        if (!name) return this.send(conn, { t: 'authFailed' });
+        conn.user = name;
+        return this.send(conn, { t: 'authed', name });
+      }
+      const r = msg.t === 'register' ? await A.register(ip, msg.username, msg.password) : await A.login(ip, msg.username, msg.password);
+      if (!r.ok) return this.err(conn, r.msg, r.code);
+      conn.user = r.name;
+      this.send(conn, { t: 'authed', name: r.name, token: r.token });
+    } finally { conn.authBusy = false; }
+  }
+
   create(conn, msg) {
     if (conn.ctx) return this.err(conn, 'Je zit al in een kamer.');
     if (!this.joinAllowed(conn)) return this.err(conn, 'Te veel pogingen. Wacht even.');
-    const name = cleanName(msg.name);
-    if (!name) return this.err(conn, 'Kies een bijnaam (1-16 tekens).', 'name');
+    const name = this.nameFor(conn, msg);
+    if (!name) return this.err(conn, this.o.requireLogin ? 'Log eerst in.' : 'Kies een bijnaam (1-16 tekens).', this.o.requireLogin ? 'login' : 'name');
     if (this.rooms.size >= this.o.maxRooms) return this.err(conn, 'De server zit vol. Probeer het later opnieuw.');
 
     let code;
@@ -329,8 +363,8 @@ class Game {
       if (existing) return this.attach(room, existing, conn, true);
     }
 
-    const name = cleanName(msg.name);
-    if (!name) return this.err(conn, 'Kies een bijnaam (1-16 tekens).', 'name');
+    const name = this.nameFor(conn, msg);
+    if (!name) return this.err(conn, this.o.requireLogin ? 'Log eerst in.' : 'Kies een bijnaam (1-16 tekens).', this.o.requireLogin ? 'login' : 'name');
     if (this.isBanned(room, { name, token, ip: conn.ip })) {
       return this.err(conn, 'Je bent verbannen uit deze kamer.', 'banned');
     }
