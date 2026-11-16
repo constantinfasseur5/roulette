@@ -21,6 +21,12 @@ Open the site in several tabs. Each tab is its own player (the session is stored
 - You stay logged in for 30 days in this browser (**Log out** button on the start screen).
 - Forgot your password? It cannot be recovered yet (no e-mail is linked); create a new account instead.
 
+### Shop: coins, colors and emojis
+- Emojis and colors for your avatar and chips have to be **bought with coins 🪙**. Only your first letter and the color the table gives you automatically are free.
+- You earn coins by playing: **15** per round you bet in, **+15** when you win and **50** per achievement (max. **400 per day**). They belong to your account.
+- Prices: colors 100, common emojis 150, other emojis 300, 👑 💎 🔥 750.
+- Open the picker (avatar button on the start screen, or ✎ in a room): locked items show their price, tap one to buy it. It is used right away.
+
 ### Language
 There is an **EN | NL** button at the top (and on the start screen). English is the default; your choice is remembered. Translations live in `public/i18n.js`; the server keeps sending Dutch and the website translates those messages.
 
@@ -95,7 +101,7 @@ If the Host is gone for 60 seconds, the Host role automatically goes to the play
 npm test      # or: node test/run.js
 ```
 
-This runs 396 checks: all bet types and payouts, Host permissions, pause, reconnect, Host handover, spam/oversized messages, Origin check, spectators, achievements, bans, accounts/login and a real multiplayer round over WebSockets.
+This runs 427 checks: all bet types and payouts, Host permissions, pause, reconnect, Host handover, spam/oversized messages, Origin check, spectators, achievements, bans, accounts/login, the shop and a real multiplayer round over WebSockets.
 
 ## Files
 

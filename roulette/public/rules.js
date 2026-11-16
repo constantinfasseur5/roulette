@@ -28,6 +28,16 @@
   const AVATARS = ['😀', '😎', '🤠', '🦊', '🐼', '🐯', '🦁', '🐸', '🐙', '🦄', '🐲', '👻', '🤖', '👽', '🎩', '👑', '💎', '🍀', '🔥', '⭐', '🎲', '🃏', '🍒', '🚀'];
   const COLORS = ['#c0392b', '#e67e22', '#d4ac0d', '#27ae60', '#16a085', '#2980b9', '#8e44ad', '#d63a8e'];
 
+  // Winkel: prijzen in munten. De beginletter en de automatisch toegewezen kleur zijn gratis, al het andere moet je kopen.
+  const PRICE_COLOR = 100;
+  const PRICE_AVATAR = {
+    '😀': 150, '😎': 150, '🤠': 150, '🦊': 150, '🐼': 150, '🐯': 150, '🦁': 150, '🐸': 150, '🐙': 150,
+    '🦄': 300, '🐲': 300, '👻': 300, '🤖': 300, '👽': 300, '🎩': 300, '🍀': 300, '⭐': 300, '🎲': 300, '🃏': 300, '🍒': 300, '🚀': 300,
+    '👑': 750, '💎': 750, '🔥': 750,
+  };
+  /** Prijs van een emoji ('avatar') of kleur ('color') in munten; 0 = gratis of onbekend. */
+  const price = (kind, value) => (kind === 'avatar' ? PRICE_AVATAR[value] || 0 : kind === 'color' && COLORS.includes(value) ? PRICE_COLOR : 0);
+
   const label = (n) => (n === 37 ? '00' : String(n));
   const colorOf = (n) => (n === 0 || n === 37 ? 'green' : RED.has(n) ? 'red' : 'black');
   const key = (kind, nums) => kind + ':' + nums.join('-');
@@ -97,5 +107,5 @@
     return def && def.nums.includes(result) ? amount * (def.ratio + 1) : 0;
   }
 
-  return { RED, VARIANTS, CHIPS, AVATARS, COLORS, label, colorOf, buildBets, payout };
+  return { RED, VARIANTS, CHIPS, AVATARS, COLORS, price, label, colorOf, buildBets, payout };
 });

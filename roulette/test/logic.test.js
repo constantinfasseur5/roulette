@@ -1005,6 +1005,124 @@ async function run() {
     } finally { global.fetch = realFetch; }
   }
 
+  group('Winkel: munten, kopen en bezit');
+  await sleep(1500);
+  {
+    const { Accounts, MemoryStore, DAILY_CAP } = require('../lib/accounts');
+    const store = new MemoryStore();
+    const accounts = new Accounts(store);
+    const g3 = new Game({ spinMs: 40, settleMs: 20, closedDelayMs: 20, resultPauseMs: 60, reconnectMs: 500, hostGraceMs: 120, emptyRoomMs: 60, betTimeMin: 1, accounts, requireLogin: true, nextResult: () => 7 });
+    const au = async (c, m, wait = 300) => { g3.handle(c, JSON.stringify(m)); await sleep(wait); };
+    const ipc = (n) => { const c = new Fake(n); c.ip = '30.0.' + (Fake.n % 250) + '.1'; return c; };
+
+    const S1 = ipc('s1');
+    await au(S1, { t: 'register', username: 'Shopper', password: 'geheim123' });
+    eq(S1.last('authed').wallet, { coins: 0, owned: { a: [], c: [] } }, 'nieuw account: 0 munten en niets gekocht');
+
+    await au(S1, { t: 'buy', kind: 'avatar', value: '👑' }, 80);
+    eq(S1.lastErr().code, 'coins', 'kopen zonder genoeg munten: geweigerd');
+    await au(S1, { t: 'buy', kind: 'avatar', value: '🙂' }, 80);
+    eq(S1.lastErr().code, 'nosale', 'iets dat niet in de winkel zit kun je niet kopen');
+    await au(S1, { t: 'buy', kind: 'foo', value: '😀' }, 80);
+    eq(S1.lastErr().code, 'nosale', 'onbekend soort: geweigerd');
+    await au(S1, { t: 'buy', kind: 'color', value: '#000000' }, 80);
+    eq(S1.lastErr().code, 'nosale', 'onbekende kleur: geweigerd');
+    eq(S1.msgs.filter((m) => m.t === 'wallet').length, 0, 'mislukte aankopen veranderen niets');
+
+    await au(S1, { t: 'create', avatar: '👑', color: '#2980b9' }, 80);
+    const r1 = g3.rooms.get(S1.code);
+    const me1 = r1.players.get(S1.id);
+    eq([me1.avatar, me1.color === '#2980b9'], ['', false], 'kamer maken met niet-gekochte emoji/kleur: wordt genegeerd');
+    ok(Rules.COLORS.includes(me1.color), 'je krijgt wel een gratis automatische kleur');
+    await au(S1, { t: 'profile', avatar: '👑' }, 80);
+    eq([S1.lastErr().code, me1.avatar], ['notowned', ''], 'in de kamer een niet-gekochte emoji kiezen: geweigerd');
+    await au(S1, { t: 'profile', color: '#2980b9' }, 80);
+    eq(S1.lastErr().code, 'notowned', 'in de kamer een niet-gekochte kleur kiezen: geweigerd');
+
+    const rec = await store.get('acct:shopper'); rec.coins = 1000; await store.set('acct:shopper', rec);
+    await au(S1, { t: 'buy', kind: 'avatar', value: '😀' }, 150);
+    let w = S1.last('wallet');
+    eq([w.coins, w.owned.a, w.bought], [850, ['😀'], { kind: 'avatar', value: '😀' }], 'emoji (150) kopen: saldo omlaag en in je bezit');
+    await au(S1, { t: 'buy', kind: 'avatar', value: '😀' }, 150);
+    eq(S1.last('wallet').coins, 850, 'dezelfde emoji nog een keer kopen kost niets');
+    await au(S1, { t: 'buy', kind: 'color', value: '#c0392b' }, 150);
+    w = S1.last('wallet');
+    eq([w.coins, w.owned.c], [750, ['#c0392b']], 'kleur (100) kopen');
+    await au(S1, { t: 'profile', avatar: '😀', color: '#c0392b' }, 80);
+    eq([me1.avatar, me1.color], ['😀', '#c0392b'], 'gekochte emoji en kleur kun je in de kamer kiezen');
+    await au(S1, { t: 'profile', avatar: '' }, 80);
+    eq(me1.avatar, '', 'terug naar de gratis beginletter kan altijd');
+    await au(S1, { t: 'buy', kind: 'avatar', value: '👑' }, 150);
+    eq([S1.last('wallet').coins, S1.last('wallet').owned.a.includes('👑')], [0, true], 'precies genoeg munten (750) is genoeg voor 👑');
+    await au(S1, { t: 'buy', kind: 'avatar', value: '🐼' }, 80);
+    eq(S1.lastErr().code, 'coins', 'daarna met 0 munten niets meer te koop');
+
+    // gekochte spullen blijven bij het account (opnieuw inloggen / nieuwe server met dezelfde opslag)
+    const accounts2 = new Accounts(store);
+    const lg = await accounts2.login('30.9.9.9', 'Shopper', 'geheim123');
+    eq([lg.ok, lg.wallet.coins, lg.wallet.owned.a.slice().sort(), lg.wallet.owned.c], [true, 0, ['👑', '😀'], ['#c0392b']], 'na een herstart (zelfde opslag): munten en aankopen zijn er nog');
+    const S1b = ipc('s1b');
+    await au(S1b, { t: 'login', username: 'Shopper', password: 'geheim123' });
+    await au(S1b, { t: 'create', avatar: '👑', color: '#c0392b' }, 80);
+    const meB = g3.rooms.get(S1b.code).players.get(S1b.id);
+    eq([meB.avatar, meB.color], ['👑', '#c0392b'], 'nieuwe kamer: bezit wordt direct gebruikt');
+    g3.handle(S1b, JSON.stringify({ t: 'leave' })); await sleep(80);
+
+    // munten verdienen in een ronde: 15 per ronde, +15 bij winst (uitslag is 7 = rood)
+    const A1 = ipc('a1'), B1 = ipc('b1');
+    await au(A1, { t: 'register', username: 'Winnaar', password: 'geheim123' });
+    await au(B1, { t: 'register', username: 'Verliezer', password: 'geheim123' });
+    await au(A1, { t: 'create' }, 80);
+    await au(B1, { t: 'join', code: A1.code }, 80);
+    await au(A1, { t: 'settings', settings: { auto: false, maxBet: 5000 } }, 80);
+    await au(A1, { t: 'start' }, 80);
+    await au(A1, { t: 'bet', key: 'red', amount: 10 }, 30);
+    await au(B1, { t: 'bet', key: 'black', amount: 10 }, 30);
+    await au(A1, { t: 'spin' }, 600);
+    eq([A1.last('wallet').gained, A1.last('wallet').coins], [80, 80], 'winnaar krijgt 15 + 15 munten + 50 voor de prestatie "Eerste winst" (en hoort het meteen)');
+    eq([B1.last('wallet').gained, B1.last('wallet').coins], [15, 15], 'verliezer krijgt 15 munten voor meespelen');
+    // wie niet inzet verdient niets
+    await au(A1, { t: 'start' }, 80);
+    await au(A1, { t: 'bet', key: 'red', amount: 10 }, 30);
+    await au(A1, { t: 'spin' }, 600);
+    eq(B1.msgs.filter((m) => m.t === 'wallet').length, 1, 'wie niet inzet verdient niets');
+    eq((await accounts.getWallet('Winnaar')).coins, 110, 'tweede gewonnen ronde: nog eens 30 (geen nieuwe prestatie), saldo staat ook in de opslag');
+
+    // daglimiet
+    const c1 = await accounts.register('30.5.5.5', 'Capper', 'geheim123');
+    const x1 = await accounts.award('Capper', 300);
+    const x2 = await accounts.award('Capper', 300);
+    const x3 = await accounts.award('Capper', 50);
+    eq([x1.gained, x2.gained, x3.gained, x3.coins, DAILY_CAP], [300, DAILY_CAP - 300, 0, DAILY_CAP, 400], 'daglimiet: nooit meer dan 400 munten per dag');
+    const rc = await store.get('acct:capper'); rc.earn.d = '2000-01-01'; await store.set('acct:capper', rc);
+    eq((await accounts.award('Capper', 20)).gained, 20, 'de volgende dag mag je weer verdienen');
+    ok(c1.ok, 'register gaf ok');
+
+    // tegelijk kopen en verdienen mag niet door elkaar lopen
+    await accounts.register('30.5.5.6', 'Racer', 'geheim123');
+    const rr = await store.get('acct:racer'); rr.coins = 1000; await store.set('acct:racer', rr);
+    const res = await Promise.all([accounts.buy('Racer', 'avatar', '😎', 150), accounts.buy('Racer', 'avatar', '🐼', 150), accounts.award('Racer', 15), accounts.buy('Racer', 'color', '#27ae60', 100)]);
+    const fin = await accounts.getWallet('Racer');
+    eq([res.slice(0, 2).every((x) => x.ok), res[3].ok, fin.coins, fin.owned.a.length, fin.owned.c.length], [true, true, 1000 - 150 - 150 - 100 + 15, 2, 1], 'tegelijk kopen en verdienen: niets raakt zoek');
+
+    // zonder verplicht inloggen is alles vrij (lokaal testen)
+    const g4 = new Game({ spinMs: 40, settleMs: 20, closedDelayMs: 20, resultPauseMs: 60, reconnectMs: 500, hostGraceMs: 120, emptyRoomMs: 60, betTimeMin: 1 });
+    const F1 = ipc('f1');
+    g4.handle(F1, JSON.stringify({ t: 'create', name: 'Vrij', avatar: '👑', color: '#2980b9' })); await sleep(80);
+    const pf = g4.rooms.get(F1.code).players.get(F1.id);
+    eq([pf.avatar, pf.color], ['👑', '#2980b9'], 'zonder verplicht inloggen: alle emoji\'s en kleuren zijn vrij');
+    g4.handle(F1, JSON.stringify({ t: 'buy', kind: 'avatar', value: '😀' })); await sleep(50);
+    eq(F1.lastErr().code, 'noshop', 'zonder verplicht inloggen: geen winkel');
+
+    // opslag-test
+    ok(await accounts.selfTest(), 'opslagtest slaagt met een werkende opslag');
+    const broken = new Accounts({ get: async () => { throw new Error('stuk'); }, set: async () => { throw new Error('stuk'); } });
+    const realErr = console.error; console.error = () => {};
+    const bt = await broken.selfTest();
+    console.error = realErr;
+    ok(!bt, 'opslagtest faalt netjes met een kapotte opslag');
+  }
+
   group('Kamer sluiten en opruimen');
   const pl = [...room().players.values()].filter((p) => p.conn);
   const conns = pl.map((p) => p.conn);

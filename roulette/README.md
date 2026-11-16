@@ -26,7 +26,14 @@ Open meerdere tabbladen op `http://localhost:3000`. Elk tabblad is een eigen spe
 - Het account is alleen je **identiteit**: je bijnaam in de kamer is vast je gebruikersnaam (niemand kan jouw naam gebruiken) en een ban hoort bij je account. Fiches en statistieken worden niet bij het account bewaard.
 - Je blijft 30 dagen ingelogd in deze browser (knop **Uitloggen** op het startscherm).
 - Wachtwoord vergeten? Dat kan nog niet worden hersteld (er is geen e-mail gekoppeld); maak dan een nieuw account.
-- **Opslag:** accounts worden bewaard in een gratis **Upstash Redis**-database (stel `UPSTASH_REDIS_REST_URL` en `UPSTASH_REDIS_REST_TOKEN` in). Zonder die twee variabelen valt de server terug op een bestand (`data/accounts.json`); op een host met tijdelijk bestandssysteem, zoals de gratis Render, verdwijnen accounts dan bij elke herstart. De server meldt dit bij het opstarten.
+- **Opslag:** accounts, munten en aankopen worden bewaard in een gratis **Upstash Redis**-database (stel `UPSTASH_REDIS_REST_URL` en `UPSTASH_REDIS_REST_TOKEN` in). Zonder die twee variabelen valt de server terug op een bestand (`data/accounts.json`); op een host met tijdelijk bestandssysteem, zoals de gratis Render, **verdwijnt dat bij elke update of herstart**. De server meldt dit bij het opstarten, het startscherm toont dan een waarschuwing en `/health` toont `accounts=file` (bij een werkende Upstash staat er `accounts=upstash`).
+
+### Winkel: munten, kleuren en emojis
+- Emojis en kleuren voor je avatar en fiches moet je **kopen met munten 🪙**. Gratis zijn alleen je beginletter en de kleur die de tafel je automatisch geeft.
+- Munten verdien je door te spelen: **15** per ronde waarin je inzet, **+15** bij winst en **50** per prestatie (max. **400 per dag**). Ze horen bij je account.
+- Prijzen: kleuren 100, gewone emojis 150, andere emojis 300, 👑 💎 🔥 750 (in `public/rules.js`; de beloningen staan bovenin `lib/game.js`).
+- Open de keuzelijst (avatar-knop op het startscherm of ✎ in de kamer): vergrendelde items tonen hun prijs, tik erop om te kopen. Het item wordt meteen gebruikt.
+- Zonder verplicht inloggen (`REQUIRE_LOGIN=0`) is alles gratis en is er geen winkel.
 
 ### Taal
 Bovenin (en op het startscherm) staat een **EN | NL**-knop. Standaard is het Engels; de keuze wordt onthouden. Vertalingen staan in `public/i18n.js`; de server blijft Nederlands sturen en de website vertaalt die berichten.
@@ -115,7 +122,11 @@ De app is één Node-proces met WebSockets. Kies een host die WebSockets onderst
 
 Omgevingsvariabelen (allemaal optioneel): `PORT`, `HOST`, `ALLOWED_ORIGINS` (komma-gescheiden, alleen nodig als de pagina vanaf een andere domeinnaam dan de server wordt geladen), `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (opslag voor accounts, aanbevolen), `ACCOUNTS_FILE` (ander pad voor het accountbestand) en `REQUIRE_LOGIN=0` (inloggen uitzetten, bv. voor lokaal testen).
 
-**Accounts op Render:** maak gratis een database op <https://upstash.com> (Redis), kopieer de *REST URL* en *REST TOKEN* en zet ze bij Render onder *Environment* als `UPSTASH_REDIS_REST_URL` en `UPSTASH_REDIS_REST_TOKEN`. Zonder dit verdwijnen accounts bij elke herstart.
+**Accounts op Render (belangrijk):** Render wist bij elke upload en herstart alle bestanden, dus accounts moeten in een externe database staan.
+1. Maak een gratis account op <https://upstash.com> en klik bij *Redis* op **Create Database** (naam bv. `roulette`, regio in Europa, gratis plan).
+2. Open de database en zoek de **REST API**-gegevens: `UPSTASH_REDIS_REST_URL` en `UPSTASH_REDIS_REST_TOKEN`.
+3. Zet beide bij Render onder *Environment* (service > Environment > Add Environment Variable) en sla op; Render start opnieuw op.
+4. Controleer: open `https://jouw-site/health`. Daar moet `accounts=upstash` staan. Staat er `accounts=file` of `accounts=upstash-error`, dan zijn de gegevens niet goed ingevuld.
 
 **Let op:** kamers staan in het geheugen. Bij een herstart van de server zijn ze weg, en draai maar **één instantie** (geen load balancer met meerdere kopieën).
 
@@ -134,7 +145,7 @@ Omgevingsvariabelen (allemaal optioneel): `PORT`, `HOST`, `ALLOWED_ORIGINS` (kom
 npm test      # of: node test/run.js   (Node 22+ voor de netwerktests)
 ```
 
-Dat draait 396 controles: alle inzettypes en uitbetalingen, host-rechten, pauze, reconnect, host-overdracht, spam/te grote berichten, Origin-controle, kijkers, prestaties, bans, accounts/inloggen en een echte multiplayer-ronde over WebSockets.
+Dat draait 427 controles: alle inzettypes en uitbetalingen, host-rechten, pauze, reconnect, host-overdracht, spam/te grote berichten, Origin-controle, kijkers, prestaties, bans, accounts/inloggen, de winkel en een echte multiplayer-ronde over WebSockets.
 
 ## Bestanden
 

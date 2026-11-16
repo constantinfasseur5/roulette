@@ -5,6 +5,25 @@
  */
 window.CHANGELOG = [
   {
+    id: '2026-11-16-shop',
+    date: '2026-11-16',
+    title: { en: 'Shop: buy colors and emojis', nl: 'Winkel: kleuren en emojis kopen' },
+    items: {
+      en: [
+        'Emojis and colors for your avatar and chips now have to be bought with coins 🪙. Only your first letter and the color the table gives you are free.',
+        'You earn coins by playing: 15 🪙 for every round you bet in, 15 more when you win, and 50 for each achievement (max. 400 per day). Your coins and purchases stay on your account.',
+        'Open the picker (the avatar button on the start screen, or ✎ in a room): locked items show a price, tap one to buy it and it is used right away. Your coins are shown next to your username.',
+        'The start screen now warns when accounts are stored temporarily on the server, and the server checks that its storage works.',
+      ],
+      nl: [
+        'Emojis en kleuren voor je avatar en fiches moet je nu kopen met munten 🪙. Alleen je beginletter en de kleur die de tafel je geeft zijn gratis.',
+        'Munten verdien je door te spelen: 15 🪙 voor elke ronde waarin je inzet, 15 extra als je wint en 50 per prestatie (max. 400 per dag). Je munten en aankopen blijven bij je account.',
+        'Open de keuzelijst (de avatar-knop op het startscherm, of ✎ in een kamer): vergrendelde items tonen een prijs, tik erop om te kopen en je gebruikt het meteen. Je munten staan naast je gebruikersnaam.',
+        'Het startscherm waarschuwt nu als accounts tijdelijk op de server worden bewaard, en de server test of de opslag werkt.',
+      ],
+    },
+  },
+  {
     id: '2026-11-15-login',
     date: '2026-11-15',
     title: { en: 'Accounts: log in to play', nl: 'Accounts: inloggen om te spelen' },

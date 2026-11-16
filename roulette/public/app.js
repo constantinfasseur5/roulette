@@ -78,6 +78,7 @@
     chip: 5, chat: [], retry: 0, noReconnect: false, queue: [],
     orient: null, model: null, modelKey: '', spinRound: null, pending: null, shownRound: 0,
     lastCountSec: -1, stream: false, login: false, user: null, authMode: 'login', authPending: false,
+    wallet: { coins: 0, owned: { a: [], c: [] } }, store: null, pick: null,
   };
 
   // ------------------------------------------------------------------ verbinding
@@ -118,6 +119,7 @@
     switch (m.t) {
       case 'config': {
         S.login = !!m.login;
+        S.store = m.store || null;
         const tok = store.get('localStorage', 'roulette.auth');
         if (S.login && tok && !S.user) { S.authPending = true; send({ t: 'auth', token: tok }); } else if (S.login && tok && S.user) send({ t: 'auth', token: tok });
         else authDone();
@@ -125,12 +127,14 @@
       }
       case 'authed':
         S.user = m.name;
+        setWallet(m.wallet);
         if (m.token) store.set('localStorage', 'roulette.auth', m.token);
         $('#inp-pass').value = '';
         showStartError('');
         return authDone();
       case 'authFailed': store.del('localStorage', 'roulette.auth'); S.user = null; return authDone();
-      case 'loggedout': S.user = null; store.del('localStorage', 'roulette.auth'); return authDone();
+      case 'loggedout': S.user = null; S.wallet = { coins: 0, owned: { a: [], c: [] } }; store.del('localStorage', 'roulette.auth'); return authDone();
+      case 'wallet': return onWallet(m);
       case 'welcome': return onWelcome(m);
       case 'state': return onState(m);
       case 'chat': S.chat.push(m); if (S.chat.length > 80) S.chat.shift(); renderChat(); if (!m.sys && S.me && m.id !== S.me.id) Sound.ping(); return;
@@ -139,6 +143,7 @@
       case 'spin': return onSpin(m);
       case 'result': return onResult(m);
       case 'error':
+        if (S.pick) { S.pick.note = tr(m.msg); S.pick.pending = null; return S.pick.draw(); }
         if (S.joined) toast(tr(m.msg), 'error'); else showStartError(tr(m.msg));
         return;
       case 'kicked': return leaveToStart(tr(m.msg || 'Je bent uit de kamer gezet.'));
@@ -949,6 +954,30 @@
   }
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { const m = $('#modal'); m.hidden = true; m.replaceChildren(); } });
 
+  // ------------------------------------------------------------------ winkel: munten, kopen, bezit
+  const shopOn = () => S.login && !!S.user;
+  const ownedItem = (kind, v) => {
+    if (!shopOn()) return true;                   // zonder verplicht inloggen is alles vrij
+    if (kind === 'avatar' && !v) return true;     // de beginletter is gratis
+    return (S.wallet.owned[kind === 'avatar' ? 'a' : 'c'] || []).includes(v);
+  };
+  function setWallet(m) {
+    if (m && typeof m.coins === 'number' && m.owned) S.wallet = { coins: m.coins, owned: { a: m.owned.a || [], c: m.owned.c || [] } };
+    renderAuth();
+    renderAvatarBtn();
+  }
+  function onWallet(m) {
+    setWallet(m);
+    if (m.gained > 0) toast('+' + m.gained + ' 🪙', 'bonus');
+    const P = S.pick;
+    if (m.bought && P) {   // net gekocht: meteen gebruiken
+      if (m.bought.kind === 'avatar') { P.cur.avatar = m.bought.value; setProfile({ avatar: m.bought.value }); }
+      else { P.cur.color = m.bought.value; setProfile({ color: m.bought.value }); }
+      P.pending = null; P.note = '';
+    }
+    if (P) P.draw();
+  }
+
   // ------------------------------------------------------------------ profiel: avatar + kleur
   const PROFILE_KEY = 'roulette.profile';
   function getProfile() {
@@ -960,36 +989,75 @@
     if (S.joined) send(Object.assign({ t: 'profile' }, patch));   // in de kamer: server bewaart het voor iedereen
     renderAvatarBtn();
   }
+  /** Wat je mag laten zien: je bewaarde keuze, maar alleen wat je echt bezit. */
+  function shownProfile() {
+    const p = getProfile();
+    return { avatar: ownedItem('avatar', p.avatar) ? p.avatar : '', color: p.color && ownedItem('color', p.color) ? p.color : '' };
+  }
   function renderAvatarBtn() {
     const b = $('#btn-avatar');
     if (!b) return;
-    const pr = getProfile();
+    const pr = shownProfile();
     b.replaceChildren(avatarEl({ name: $('#inp-name').value.trim() || '?', avatar: pr.avatar, color: pr.color || '#2f5a47' }, 'lg'));
   }
 
   function openProfilePicker() {
     const modal = $('#modal');
-    const close = () => { modal.hidden = true; modal.replaceChildren(); };
+    const close = () => { S.pick = null; modal.hidden = true; modal.replaceChildren(); };
     const meP = S.st ? S.st.players.find((x) => x.id === S.st.me.id) : null;
-    const stored = getProfile();
+    const stored = shownProfile();
     const name = meP ? meP.name : ($('#inp-name').value.trim() || '?');
     const cur = { avatar: meP ? meP.avatar : stored.avatar, color: meP ? meP.color : (stored.color || '#2f5a47') };
-    const draw = () => {
+    const P = S.pick = { cur, pending: null, note: '', draw: null };
+    const shop = shopOn();
+    const swatch = (c, cls, onclick) => {
+      const b = h('button', { type: 'button', class: 'swatch' + (cls ? ' ' + cls : ''), 'aria-label': c, onclick });
+      b.style.background = c;
+      return b;
+    };
+    const choose = (kind, value) => {
+      if (ownedItem(kind, value)) {
+        if (kind === 'avatar') cur.avatar = value; else cur.color = value;
+        setProfile(kind === 'avatar' ? { avatar: value } : { color: value });
+        P.note = '';
+      } else { P.pending = { kind, value }; P.note = ''; }
+      P.draw();
+    };
+    const buyBox = () => {
+      const { kind, value } = P.pending;
+      const price = Rules.price(kind, value);
+      const enough = S.wallet.coins >= price;
+      return h('div', { class: 'buy-box' },
+        kind === 'avatar' ? h('span', { class: 'buy-emoji', text: value }) : swatch(value, 'big'),
+        h('p', { class: 'buy-q', text: enough ? t('Kopen voor {n} 🪙?', { n: price }) : t('Nog {n} 🪙 nodig. Speel rondes om munten te verdienen.', { n: price - S.wallet.coins }) }),
+        h('div', { class: 'row-btns' },
+          enough ? h('button', { class: 'btn small gold', type: 'button', onclick: () => { send({ t: 'buy', kind, value }); } }, t('Kopen')) : null,
+          h('button', { class: 'btn small ghost', type: 'button', onclick: () => { P.pending = null; P.draw(); } }, t('Annuleren'))));
+    };
+    P.draw = () => {
       modal.replaceChildren(h('div', { class: 'modal-card', role: 'dialog', 'aria-modal': 'true', 'aria-label': t('Avatar en kleur') },
         h('h3', { text: t('Avatar en kleur') }),
+        shop ? h('p', { class: 'pick-coins', text: '🪙 ' + fmt(S.wallet.coins) }) : null,
         h('div', { class: 'pick-preview' }, avatarEl({ name, avatar: cur.avatar, color: cur.color }, 'xl')),
-        h('div', { class: 'pick-grid' }, [''].concat(Rules.AVATARS).map((a) =>
-          h('button', { type: 'button', class: 'pick' + (cur.avatar === a ? ' sel' : ''), title: a ? null : t('Beginletter'),
-            onclick: () => { cur.avatar = a; setProfile({ avatar: a }); draw(); } }, a || name.slice(0, 1).toUpperCase()))),
-        h('div', { class: 'pick-colors' }, Rules.COLORS.map((c) => {
-          const b = h('button', { type: 'button', class: 'swatch' + (cur.color === c ? ' sel' : ''), 'aria-label': c,
-            onclick: () => { cur.color = c; setProfile({ color: c }); draw(); } });
-          b.style.background = c;
-          return b;
+        P.pending ? buyBox() : null,
+        P.note ? h('p', { class: 'pick-note', text: P.note }) : null,
+        h('div', { class: 'pick-grid' }, [''].concat(Rules.AVATARS).map((a) => {
+          const locked = !ownedItem('avatar', a);
+          return h('button', { type: 'button', class: 'pick' + (cur.avatar === a ? ' sel' : '') + (locked ? ' locked' : ''), title: a ? null : t('Beginletter'),
+            onclick: () => choose('avatar', a) },
+            h('span', { class: 'pk-i', text: a || name.slice(0, 1).toUpperCase() }),
+            locked ? h('span', { class: 'pk-p', text: '🪙' + Rules.price('avatar', a) }) : null);
         })),
+        h('div', { class: 'pick-colors' }, Rules.COLORS.map((c) => {
+          const locked = !ownedItem('color', c);
+          const sw = swatch(c, (cur.color === c ? 'sel' : '') + (locked ? ' locked' : ''), () => choose('color', c));
+          if (locked) sw.title = '🪙' + Rules.price('color', c);
+          return sw;
+        })),
+        shop ? h('p', { class: 'fine pick-hint', text: t('Tik op een slotje om het met munten te kopen. Munten verdien je door rondes te spelen.') }) : null,
         h('button', { class: 'btn small gold', onclick: close }, t('Klaar'))));
     };
-    draw();
+    P.draw();
     modal.hidden = false;
     modal.onclick = (e) => { if (e.target === modal) close(); };
   }
@@ -1192,6 +1260,14 @@
     const inn = S.login && !!S.user;
     $('#user-row').hidden = !inn;
     $('#user-name').textContent = S.user || '';
+    $('#user-coins').textContent = inn ? '🪙 ' + fmt(S.wallet.coins) : '';
+    const warn = $('#store-warn');
+    const local = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(location.hostname);
+    const bad = S.login && !local && S.store && S.store !== 'upstash';
+    warn.hidden = !bad;
+    if (bad) warn.textContent = S.store === 'upstash-error'
+      ? t('⚠ De opslag voor accounts werkt nu niet. Accounts en aankopen worden misschien niet bewaard.')
+      : t('⚠ Accounts en aankopen worden op deze server tijdelijk bewaard en verdwijnen bij elke update.');
     const nm = $('#inp-name');
     nm.readOnly = inn;
     if (inn) nm.value = S.user;
@@ -1207,7 +1283,7 @@
   for (const id of ['#inp-user', '#inp-pass']) $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth(); });
   $('#tab-login').addEventListener('click', () => { S.authMode = 'login'; showStartError(''); renderAuth(); });
   $('#tab-register').addEventListener('click', () => { S.authMode = 'register'; showStartError(''); renderAuth(); });
-  $('#btn-logout').addEventListener('click', () => { send({ t: 'logout', token: store.get('localStorage', 'roulette.auth') }); store.del('localStorage', 'roulette.auth'); S.user = null; $('#inp-name').value = ''; renderAuth(); });
+  $('#btn-logout').addEventListener('click', () => { send({ t: 'logout', token: store.get('localStorage', 'roulette.auth') }); store.del('localStorage', 'roulette.auth'); S.user = null; S.wallet = { coins: 0, owned: { a: [], c: [] } }; $('#inp-name').value = ''; renderAuth(); renderAvatarBtn(); });
   // als de server niets laat weten (oude versie/offline) laten we het scherm toch zien
   S.authWait = setTimeout(authDone, 4000);
 

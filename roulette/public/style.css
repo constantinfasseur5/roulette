@@ -337,11 +337,28 @@ body.in-game .changelog-btn { position: relative; left: auto; bottom: auto; marg
 
 .pick-preview { display: grid; place-items: center; margin: 6px 0 12px; }
 .pick-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 12px; }
-.pick { height: 40px; border-radius: 10px; background: rgba(255, 255, 255, 0.06); border: 1px solid transparent; color: #fff; font: inherit; font-size: 1.25rem; cursor: pointer; touch-action: manipulation; }
+.pick { min-height: 44px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 2px 0; line-height: 1.1; border-radius: 10px; background: rgba(255, 255, 255, 0.06); border: 1px solid transparent; color: #fff; font: inherit; font-size: 1.25rem; cursor: pointer; touch-action: manipulation; }
 .pick:hover { background: rgba(255, 255, 255, 0.14); }
+.pick .pk-i { font-size: 1.25rem; }
+.pick .pk-p { font-size: 0.6rem; color: var(--gold-hi); letter-spacing: 0; }
+.pick.locked .pk-i { opacity: 0.45; filter: grayscale(0.6); }
 .pick.sel { border-color: var(--gold-hi); background: rgba(214, 178, 94, 0.25); }
 .pick-colors { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 14px; }
 .swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.25); cursor: pointer; padding: 0; }
+.swatch { position: relative; }
+.swatch.locked { opacity: 0.5; }
+.swatch.locked::after { content: '🔒'; position: absolute; inset: 0; display: grid; place-items: center; font-size: 0.7rem; }
+.swatch.big { width: 44px; height: 44px; cursor: default; }
+.pick-coins { margin: -4px 0 4px; text-align: center; color: var(--gold-hi); font-weight: 700; }
+.pick-note { margin: 0 0 10px; text-align: center; color: #ffc8c8; font-size: 0.85rem; }
+.pick-hint { text-align: center; margin: -4px 0 12px; }
+.buy-box { display: grid; justify-items: center; gap: 8px; margin: 0 0 12px; padding: 10px; border: 1px solid var(--gold); border-radius: 12px; background: rgba(214, 178, 94, 0.1); }
+.buy-emoji { font-size: 2rem; line-height: 1; }
+.buy-q { margin: 0; text-align: center; font-weight: 600; }
+.row-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.coins { color: var(--gold-hi); font-weight: 700; white-space: nowrap; }
+.store-warn { margin: 0 0 12px; padding: 8px 10px; border: 1px solid #c9a23a; border-radius: 10px; background: rgba(201, 162, 58, 0.12); color: var(--gold-hi); font-size: 0.8rem; text-align: center; }
+body.watch-start .store-warn { display: none; }
 .swatch.sel { border-color: #fff; box-shadow: 0 0 0 3px var(--gold); }
 
 .stat-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }

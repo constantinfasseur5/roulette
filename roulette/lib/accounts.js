@@ -17,6 +17,14 @@ const scrypt = promisify(crypto.scrypt);
 const NAME_RE = /^[A-Za-z0-9_]{3,16}$/;
 const RESERVED = /^(host|admin|moderator|system|server|kijker\d*|watcher\d*)$/i;
 const SESSION_TTL = 30 * 24 * 3600; // seconden
+const DAILY_CAP = 400;              // maximaal aantal munten dat je per dag kunt verdienen
+const KIND_KEY = { avatar: 'a', color: 'c' };
+const dayKey = () => new Date().toISOString().slice(0, 10);
+/** Wat de browser van een account mag zien: munten + gekochte emojis (a) en kleuren (c). */
+const walletOf = (rec) => ({
+  coins: Math.max(0, Math.floor(rec.coins || 0)),
+  owned: { a: (rec.owned && rec.owned.a) || [], c: (rec.owned && rec.owned.c) || [] },
+});
 
 // ---------------------------------------------------------------- opslag
 class MemoryStore {
@@ -96,6 +104,7 @@ class Accounts {
     this.ipFails = new Map();   // ip -> {n, reset}
     this.pairFails = new Map(); // ip|naam -> {n, reset}
     this.regLog = new Map();    // ip -> {n, reset}
+    this.locks = new Map();     // account -> keten van lopende wijzigingen (munten/aankopen komen nooit door elkaar)
     const t = setInterval(() => this.sweep(), 60000); t.unref();
   }
 
@@ -112,6 +121,24 @@ class Accounts {
     return e.n;
   }
   count(map, key) { const e = map.get(key); return e && e.reset > Date.now() ? e.n : 0; }
+
+  /** Voer wijzigingen aan één account na elkaar uit, zodat een aankoop en een beloning elkaar niet overschrijven. */
+  lock(lower, fn) {
+    const prev = this.locks.get(lower) || Promise.resolve();
+    const run = prev.then(fn, fn);
+    const tail = run.catch(() => {});
+    this.locks.set(lower, tail);
+    tail.then(() => { if (this.locks.get(lower) === tail) this.locks.delete(lower); });
+    return run;
+  }
+
+  /** Test of de opslag echt werkt (schrijven + terug lezen). */
+  async selfTest() {
+    try {
+      await this.store.set('selftest', Date.now(), 60);
+      return (await this.store.get('selftest')) !== null;
+    } catch (e) { console.error('Opslagtest mislukt:', e.message); return false; }
+  }
 
   async hash(password, salt) { return (await scrypt(String(password), salt, 64)).toString('hex'); }
 
@@ -130,10 +157,10 @@ class Accounts {
     if (this.bump(this.regLog, ip, 3600000) > 8) return fail('Te veel nieuwe accounts vanaf dit adres. Probeer het later opnieuw.', 'throttle');
     try {
       const salt = crypto.randomBytes(16).toString('hex');
-      const rec = { name, lower: name.toLowerCase(), salt, hash: await this.hash(pw, salt), created: Date.now() };
+      const rec = { name, lower: name.toLowerCase(), salt, hash: await this.hash(pw, salt), created: Date.now(), coins: 0, owned: { a: [], c: [] } };
       const ok = await this.store.setnx('acct:' + rec.lower, rec);
       if (!ok) return fail('Die gebruikersnaam bestaat al.', 'taken');
-      return { ok: true, name: rec.name, token: await this.startSession(rec) };
+      return { ok: true, name: rec.name, wallet: walletOf(rec), token: await this.startSession(rec) };
     } catch (e) {
       console.error('register:', e.message);
       return fail('Inloggen is tijdelijk niet beschikbaar. Probeer het later opnieuw.', 'storage');
@@ -160,22 +187,81 @@ class Accounts {
         return fail('Onbekende gebruikersnaam of fout wachtwoord.', 'badlogin');
       }
       this.pairFails.delete(pair);
-      return { ok: true, name: rec.name, token: await this.startSession(rec) };
+      return { ok: true, name: rec.name, wallet: walletOf(rec), token: await this.startSession(rec) };
     } catch (e) {
       console.error('login:', e.message);
       return fail('Inloggen is tijdelijk niet beschikbaar. Probeer het later opnieuw.', 'storage');
     }
   }
 
-  /** Controleer een bewaarde sessiesleutel. Geeft de gebruikersnaam of null. */
-  async check(token) {
+  /** Controleer een bewaarde sessiesleutel. Geeft { name, wallet } of null. */
+  async checkFull(token) {
     if (typeof token !== 'string' || !/^[0-9a-f]{64}$/.test(token)) return null;
     try {
       const s = await this.store.get('sess:' + sha(token));
       if (!s) return null;
       const rec = await this.store.get('acct:' + s.lower);
-      return rec ? rec.name : null;
+      return rec ? { name: rec.name, wallet: walletOf(rec) } : null;
     } catch (e) { return null; }
+  }
+
+  /** Controleer een bewaarde sessiesleutel. Geeft de gebruikersnaam of null. */
+  async check(token) {
+    const r = await this.checkFull(token);
+    return r ? r.name : null;
+  }
+
+  async getWallet(name) {
+    try {
+      const rec = await this.store.get('acct:' + String(name).toLowerCase());
+      return rec ? walletOf(rec) : null;
+    } catch (e) { return null; }
+  }
+
+  /** Munten erbij (met een daglimiet). Geeft het nieuwe saldo + hoeveel erbij kwam, of null bij een storing. */
+  award(name, amount) {
+    const lower = String(name).toLowerCase();
+    return this.lock(lower, async () => {
+      try {
+        const rec = await this.store.get('acct:' + lower);
+        if (!rec) return null;
+        const d = dayKey();
+        const earn = rec.earn && rec.earn.d === d ? rec.earn : { d, n: 0 };
+        const give = Math.max(0, Math.min(Math.floor(amount), DAILY_CAP - earn.n));
+        if (give > 0) {
+          rec.coins = Math.max(0, Math.floor(rec.coins || 0)) + give;
+          earn.n += give;
+          rec.earn = earn;
+          await this.store.set('acct:' + lower, rec);
+        }
+        return Object.assign(walletOf(rec), { gained: give });
+      } catch (e) { console.error('award:', e.message); return null; }
+    });
+  }
+
+  /** Een emoji ('avatar') of kleur ('color') kopen voor een bepaald aantal munten. */
+  buy(name, kind, value, price) {
+    const lower = String(name).toLowerCase();
+    const k = KIND_KEY[kind];
+    if (!k || !(price > 0)) return Promise.resolve(fail('Dat is niet te koop.', 'nosale'));
+    return this.lock(lower, async () => {
+      try {
+        const rec = await this.store.get('acct:' + lower);
+        if (!rec) return fail('Account niet gevonden.', 'noacct');
+        if (!rec.owned) rec.owned = { a: [], c: [] };
+        if (!rec.owned[k]) rec.owned[k] = [];
+        if (rec.owned[k].includes(value)) return { ok: true, already: true, wallet: walletOf(rec) };
+        const coins = Math.max(0, Math.floor(rec.coins || 0));
+        if (coins < price) return fail('Te weinig munten.', 'coins');
+        rec.coins = coins - price;
+        rec.owned[k].push(value);
+        await this.store.set('acct:' + lower, rec);
+        return { ok: true, wallet: walletOf(rec) };
+      } catch (e) {
+        console.error('buy:', e.message);
+        return fail('Kopen is tijdelijk niet beschikbaar. Probeer het later opnieuw.', 'storage');
+      }
+    });
   }
 
   async logout(token) {
@@ -186,4 +272,4 @@ class Accounts {
 
 function fail(msg, code) { return { ok: false, msg, code }; }
 
-module.exports = { Accounts, makeStore, MemoryStore, FileStore, UpstashStore, NAME_RE };
+module.exports = { Accounts, makeStore, MemoryStore, FileStore, UpstashStore, NAME_RE, DAILY_CAP };

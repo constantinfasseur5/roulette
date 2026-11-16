@@ -47,10 +47,17 @@ if (requireLogin) {
   storeKind = made.kind;
   gameOpts.accounts = new Accounts(made.store);
   gameOpts.requireLogin = true;
-  if (made.kind === 'file' && process.env.RENDER) {
-    console.warn('LET OP: accounts worden in een bestand bewaard dat op Render bij elke herstart verdwijnt. Stel UPSTASH_REDIS_REST_URL en UPSTASH_REDIS_REST_TOKEN in.');
+  if (made.kind === 'file') {
+    console.warn('LET OP: accounts worden in een bestand bewaard. Op Render (en andere gratis hosts) verdwijnt dat bij elke update of herstart. Stel UPSTASH_REDIS_REST_URL en UPSTASH_REDIS_REST_TOKEN in.');
   }
   console.log(`Inloggen verplicht (accounts: ${made.kind}).`);
+  // Test meteen of de opslag echt werkt, zodat een fout in de Upstash-gegevens direct in de log en op /health zichtbaar is
+  if (made.kind === 'upstash') {
+    gameOpts.accounts.selfTest().then((ok) => {
+      if (!ok) storeKind = 'upstash-error';
+      console.log(ok ? 'Upstash werkt: accounts blijven bewaard.' : 'FOUT: Upstash antwoordt niet. Controleer UPSTASH_REDIS_REST_URL en UPSTASH_REDIS_REST_TOKEN.');
+    });
+  }
 }
 
 const game = new Game(gameOpts);
@@ -91,7 +98,7 @@ const server = http.createServer((req, res) => {
 
   if (pathname === '/health') {
     res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
-    return res.end(`ok rooms=${game.rooms.size}`);
+    return res.end(`ok rooms=${game.rooms.size} accounts=${storeKind}`);
   }
 
   if (pathname === '/') pathname = '/index.html';

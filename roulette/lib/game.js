@@ -64,6 +64,10 @@ const ACH_TITLES = {
   first_win: 'Eerste winst', streak3: 'Hot streak', straight: 'Voltreffer', allin: 'Alles op één kaart',
   comeback: 'Terug uit de put', jackpot: 'Jackpot', veteran: 'Doorzetter', king: 'Koning van de tafel',
 };
+// Munten voor de winkel (alleen met een account): per gespeelde ronde, extra bij winst, en per prestatie. Daglimiet staat in accounts.js.
+const COIN_ROUND = 15;
+const COIN_WIN = 15;
+const COIN_ACH = 50;
 const cleanAvatar = (v) => (typeof v === 'string' && Rules.AVATARS.includes(v) ? v : '');
 const cleanColor = (v) => (typeof v === 'string' && Rules.COLORS.includes(v) ? v : '');
 
@@ -181,6 +185,7 @@ class Game {
 
     switch (msg.t) {
       case 'register': case 'login': case 'auth': case 'logout': return this.authMsg(conn, msg);
+      case 'buy': return this.buyMsg(conn, msg);
       case 'create': return this.create(conn, msg);
       case 'join': return this.join(conn, msg);
       case 'resume': return this.resume(conn, msg);
@@ -265,6 +270,34 @@ class Game {
     return p;
   }
 
+  /** Mag deze verbinding (dit account) die emoji ('avatar') of kleur gebruiken? Zonder verplicht inloggen is alles vrij. */
+  owns(conn, kind, value) {
+    if (!this.o.requireLogin) return true;
+    if (kind === 'avatar' && !value) return true;   // de beginletter is gratis
+    const list = conn.wallet && conn.wallet.owned && conn.wallet.owned[kind === 'avatar' ? 'a' : 'c'];
+    return !!(list && list.includes(value));
+  }
+
+  /** Gekozen avatar/kleur, maar alleen wat het account echt bezit. */
+  profFor(conn, prof) {
+    const a = cleanAvatar(prof && prof.avatar);
+    const c = cleanColor(prof && prof.color);
+    return { avatar: this.owns(conn, 'avatar', a) ? a : '', color: c && this.owns(conn, 'color', c) ? c : '' };
+  }
+
+  /** Munten verdienen (alleen met een account). Fire-and-forget; de speler krijgt zijn nieuwe saldo te zien. */
+  payCoins(p, amount) {
+    const A = this.o.accounts;
+    if (!A || !this.o.requireLogin || !(amount > 0)) return;
+    A.award(p.name, amount).then((w) => {
+      if (!w) return;
+      if (p.conn) {
+        p.conn.wallet = { coins: w.coins, owned: w.owned };
+        this.send(p.conn, { t: 'wallet', coins: w.coins, owned: w.owned, gained: w.gained });
+      }
+    }).catch(() => {});
+  }
+
   /** Naam van de speler: bij verplicht inloggen is dat de accountnaam, anders de gekozen bijnaam. */
   nameFor(conn, msg) {
     if (this.o.requireLogin) return conn.user ? cleanName(conn.user) : '';
@@ -283,19 +316,41 @@ class Game {
       if (msg.t === 'logout') {
         await A.logout(msg.token);
         conn.user = null;
+        conn.wallet = null;
         return this.send(conn, { t: 'loggedout' });
       }
       if (msg.t === 'auth') {
-        const name = await A.check(msg.token);
-        if (!name) return this.send(conn, { t: 'authFailed' });
-        conn.user = name;
-        return this.send(conn, { t: 'authed', name });
+        const r = await A.checkFull(msg.token);
+        if (!r) return this.send(conn, { t: 'authFailed' });
+        conn.user = r.name;
+        conn.wallet = r.wallet;
+        return this.send(conn, { t: 'authed', name: r.name, wallet: r.wallet });
       }
       const r = msg.t === 'register' ? await A.register(ip, msg.username, msg.password) : await A.login(ip, msg.username, msg.password);
       if (!r.ok) return this.err(conn, r.msg, r.code);
       conn.user = r.name;
-      this.send(conn, { t: 'authed', name: r.name, token: r.token });
+      conn.wallet = r.wallet;
+      this.send(conn, { t: 'authed', name: r.name, token: r.token, wallet: r.wallet });
     } finally { conn.authBusy = false; }
+  }
+
+  /** Winkel: een emoji of kleur kopen met munten. Mag ook binnen een kamer. */
+  async buyMsg(conn, msg) {
+    const A = this.o.accounts;
+    if (!A || !this.o.requireLogin) return this.err(conn, 'De winkel staat uit.', 'noshop');
+    if (!conn.user) return this.err(conn, 'Log eerst in.', 'login');
+    if (conn.buyBusy) return this.err(conn, 'Even geduld...', 'busy');
+    const kind = msg.kind === 'avatar' || msg.kind === 'color' ? msg.kind : '';
+    const value = typeof msg.value === 'string' ? msg.value : '';
+    const price = Rules.price(kind, value);
+    if (!price) return this.err(conn, 'Dat is niet te koop.', 'nosale');
+    conn.buyBusy = true;
+    try {
+      const r = await A.buy(conn.user, kind, value, price);
+      if (!r.ok) return this.err(conn, r.msg, r.code);
+      conn.wallet = r.wallet;
+      this.send(conn, { t: 'wallet', coins: r.wallet.coins, owned: r.wallet.owned, bought: { kind, value } });
+    } finally { conn.buyBusy = false; }
   }
 
   create(conn, msg) {
@@ -337,7 +392,7 @@ class Game {
     do { room.watchKey = crypto.randomBytes(9).toString('base64url'); } while (this.watchKeys.has(room.watchKey));
     this.watchKeys.set(room.watchKey, room);
     this.rooms.set(code, room);
-    const p = this.newPlayer(room, name, msg);
+    const p = this.newPlayer(room, name, this.profFor(conn, msg));
     room.hostId = p.id;
     this.attach(room, p, conn, false);
   }
@@ -375,7 +430,7 @@ class Game {
       if (p.name.toLowerCase() === lower) return this.err(conn, 'Die bijnaam is al in gebruik in deze kamer.', 'name');
     }
 
-    const p = this.newPlayer(room, name, msg);
+    const p = this.newPlayer(room, name, this.profFor(conn, msg));
     p.sitOut = room.phase === 'betting' || room.phase === 'closed' || room.phase === 'spinning';
     this.attach(room, p, conn, false);
     this.note(room, `${p.name} doet mee.`, 'join');
@@ -710,6 +765,7 @@ class Game {
     const rows = [];
     const rankBefore = this.ranks(room);
     const gained = [];   // nieuwe prestaties in deze ronde: [{ p, id }]
+    const coins = new Map();   // speler -> munten die hij deze ronde verdient
     const start = room.settings.startChips;
 
     for (const p of room.players.values()) {
@@ -727,6 +783,7 @@ class Game {
       p.prevBets = [...p.bets];
       this.recordStats(p, stake, returned - stake);
       this.checkAchievements(p, { stake, net: returned - stake, allIn, result, start }, gained);
+      coins.set(p, COIN_ROUND + (returned - stake > 0 ? COIN_WIN : 0));
       rows.push({ id: p.id, name: p.name, stake, returned, net: returned - stake });
     }
 
@@ -762,7 +819,11 @@ class Game {
       const top = room.players.get(topId);
       if (top && !top.ach.includes('king')) { top.ach.push('king'); gained.push({ p: top, id: 'king' }); }
     }
-    for (const { p, id } of gained) this.note(room, `🏅 ${p.name} behaalde: ${ACH_TITLES[id]}!`, 'ach');
+    for (const { p, id } of gained) {
+      this.note(room, `🏅 ${p.name} behaalde: ${ACH_TITLES[id]}!`, 'ach');
+      coins.set(p, (coins.get(p) || 0) + COIN_ACH);
+    }
+    for (const [p, n] of coins) this.payCoins(p, n);
 
     this.autoContinue(room);
     this.touch(room, true);
@@ -918,8 +979,16 @@ class Game {
 
   /** Eigen avatar en/of kleur wijzigen (alleen waarden uit de vaste lijsten). */
   cmdProfile(conn, room, player, msg) {
-    if ('avatar' in msg) player.avatar = cleanAvatar(msg.avatar);
-    if ('color' in msg) { const c = cleanColor(msg.color); if (c) player.color = c; }
+    if ('avatar' in msg) {
+      const a = cleanAvatar(msg.avatar);
+      if (this.owns(conn, 'avatar', a)) player.avatar = a;
+      else this.err(conn, 'Die emoji heb je nog niet gekocht.', 'notowned');
+    }
+    if ('color' in msg) {
+      const c = cleanColor(msg.color);
+      if (c && this.owns(conn, 'color', c)) player.color = c;
+      else if (c) this.err(conn, 'Die kleur heb je nog niet gekocht.', 'notowned');
+    }
     this.touch(room);
   }
 
